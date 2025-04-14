@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WebGL Example File</title>
+ 
+	<script id="vshader" type="x-shader/x-vertex">
+	attribute vec2 vPosition;
+	attribute vec4 vColor;
+	uniform mat4 cameraMatrix;
+	uniform mat4 projMatrix;
+
+	void main() {
+
+		gl_Position = projMatrix * cameraMatrix * vec4(vPosition, 0.0, 1.0);
+  	}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec4 fColor;
+
+	void main() 
+	{
+		gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+  	}
+	</script>
+	
+    <script src="lib/webgl-utils.js"></script>
+    <script src="lib/initShaders.js"></script>
+    <script src="lib/MV.js"></script>
+    
+    <script src="team-project.js"></script>
+
+  </head>
+ 
+  <body onload="main()">
+  
+    <canvas id="webgl" width="650" height="650">
+    Please use a browser that supports the "canvas" tag.
+    </canvas>
+
+  </body>
+</html>
