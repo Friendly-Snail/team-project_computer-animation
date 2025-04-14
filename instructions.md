@@ -1,5 +1,5 @@
 # Team Project
->Due: May 4 by 11:59pm
+>Due: May 4 2025 by 11:59pm
 
 ## Overview
 In this project, you will create an animation work of your own choosing, with approval of the instructor. The objectives are for you to push your abilities beyond what you have learned in the course, and create something cool. Though the actual structure of this project is not well defined, you must write all the motion-control code for your project by yourself.
