@@ -1,4 +1,5 @@
 let gl, program;
+let vertexCount;
 
 function main()
 {
@@ -28,13 +29,34 @@ function main()
     setUniformMatrix("cameraMatrix", cameraMatrix);
     setUniformMatrix("projMatrix", projMatrix);
 
+
+    const fileInput = document.getElementById("files");
+    const mySpline = new Spline();
+    fileInput.addEventListener("change", function(event) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const fileContents = e.target.result;
+            mySpline.parse(fileContents);
+
+            const catmullPoints = mySpline.generateCatmullRomCurve();
+            console.log("Loaded spline points:", catmullPoints);
+
+            const curve2D = catmullPoints.map(p => vec2(p.x, p.y));
+            setAttribute("vPosition", curve2D, 2);
+            vertexCount = curve2D.length;
+
+        };
+        reader.readAsText(event.target.files[0]);
+    });
+
+
     render();
 }
 
 function render() {
 
     // Set clear color
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(1.0, 1.0, 1.0, 1.0);
 
     // Clear <canvas> by clearing the color buffer
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -56,3 +78,5 @@ function setUniformMatrix(name, data) {
     let matrixLoc = gl.getUniformLocation(program, name);
     gl.uniformMatrix4fv(matrixLoc, false, flatten(data));
 }
+
+window.addEventListener('load', main);

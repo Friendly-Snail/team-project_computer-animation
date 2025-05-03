@@ -29,16 +29,21 @@
     <script src="lib/webgl-utils.js"></script>
     <script src="lib/initShaders.js"></script>
     <script src="lib/MV.js"></script>
-    
+
+    <script src="spline.js"></script>
     <script src="team-project.js"></script>
 
   </head>
  
-  <body onload="main()">
+  <body>
   
     <canvas id="webgl" width="650" height="650">
     Please use a browser that supports the "canvas" tag.
     </canvas>
+
+    <form id="fileupload" enctype="multipart/form-data">
+        <input type="file" id="files" name="files[]" />
+    </form>
 
   </body>
 </html>
