@@ -20,47 +20,27 @@ const riderSkeleton = [
 
 function main()
 {
-	console.log('Starting main()');
-	
 	// Retrieve <canvas> element
 	let canvas = document.getElementById('webgl');
 	if (!canvas) {
-		console.error('Canvas element not found!');
 		return;
 	}
-	console.log('Canvas found:', canvas);
 
 	// Get the rendering context for WebGL
 	gl = WebGLUtils.setupWebGL(canvas, null);
-	console.log('WebGL context created:', gl);
-	console.log('Canvas size:', canvas.width, canvas.height);
-	
-	//Check that the return value is not null.
-	if (!gl) 
-	{
-		console.error('Failed to get the rendering context for WebGL');
-		return;
-	}
 
 	// Initialize shaders
 	program = initShaders(gl, "vshader", "fshader");
 	if (!program) {
-		console.error('Failed to initialize shaders');
 		return;
 	}
-	console.log('Shaders initialized');
 	gl.useProgram(program);
 
 	//Set up the viewport
 	gl.viewport( 0, 0, canvas.width, canvas.height );
-	console.log('Viewport set to:', canvas.width, canvas.height);
 
 	let cameraMatrix = lookAt(vec3(0.0, 0.0, 2.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0));
 	let projMatrix = perspective(120, 1, 0.1, 10);
-
-	// Debug logging for matrices
-	console.log('Camera Matrix:', cameraMatrix);
-	console.log('Projection Matrix:', projMatrix);
 
 	setUniformMatrix("cameraMatrix", cameraMatrix);
 	setUniformMatrix("projMatrix", projMatrix);
@@ -93,7 +73,6 @@ function main()
 
 function render() {
 	// Debug: log key state each frame
-	console.log('vertexCount:', vertexCount, 'track.length:', track.length, 'carPosition:', carPosition);
 	
 	// Clear the canvas
 	gl.clearColor(1.0, 1.0, 1.0, 1.0);
@@ -102,7 +81,6 @@ function render() {
 	// Use orthographic projection that matches track coordinates
 	let projMatrix = ortho(0, 1125, 0, 1125, -1, 1);
 	setUniformMatrix("projMatrix", projMatrix);
-	console.log('Projection Matrix:', projMatrix);
 	
 	// Use identity camera matrix
 	setUniformMatrix("cameraMatrix", mat4());
@@ -110,7 +88,6 @@ function render() {
 	// Log attribute locations
 	let posLoc = gl.getAttribLocation(program, "vPosition");
 	let colLoc = gl.getAttribLocation(program, "vColor");
-	console.log('Attribute locations - Position:', posLoc, 'Color:', colLoc);
 	
 	if (vertexCount > 0) {
 		// Draw the track in red
@@ -319,7 +296,7 @@ function drawRiderSkeleton(modelMatrix, time) {
 	// Draw bones as lines
 	const lines = [
 		// [start, end, color]
-		[positions.root, positions.torso, vec4(0,0,0,1)], 
+		[positions.root, positions.torso, vec4(0,0,0,1)],
 		[positions.torso, positions.head, vec4(0,0,0,1)],
 		[positions.torso, positions.leftArm, vec4(0,0,0,1)],
 		[positions.torso, positions.rightArm, vec4(0,0,0,1)],
