@@ -7,6 +7,19 @@ let controlPointQuaternions = [];
 let cartDistance = 0;
 const cartScale = 2.5;
 
+
+
+
+//physics variables
+let mass= 1.0;
+let gravity = 9.81;
+let energy = 0.0;
+let trackLength = 0.0;
+
+let lastTime = null;
+let curve3D       = [];
+let initialHeight = 0;
+
 // Rider Skeleton Definition
 const riderSkeleton = [
 	{ name: "root", parent: null, length: 0, angle: 0 },
@@ -54,12 +67,28 @@ function main()
 			const fileContents = e.target.result;
 			mySpline.parse(fileContents);
 			const catmullPoints = mySpline.generateCatmullRomCurve();
+			curve3D = catmullPoints;
 			// Scale and center the track for a 650x650 canvas
 			const scale = 200;
 			const offset = vec2(325, 325);
 			const curve2D = catmullPoints.map(p => add(vec2(p.x * scale, p.y * scale), offset));
-			track = curve2D;
-			vertexCount = curve2D.length;
+			track = catmullPoints.map(p =>
+				add(vec2(p.x * scale, p.y * scale), offset)
+			)
+			vertexCount = track.length;
+
+			trackLength = 0;
+			for (let i = 1; i < curve3D.length; i++) {
+				const dx = curve3D[i].x - curve3D[i-1].x;
+				const dy = curve3D[i].y - curve3D[i-1].y;
+				const dz = curve3D[i].z - curve3D[i-1].z;
+				trackLength += Math.hypot(dx, dy, dz);
+			}
+
+			lastTime = performance.now();
+			initialHeight = curve3D[0].z;
+			energy = mass * gravity * initialHeight;
+
 			controlPointQuaternions = mySpline.controlPoints.map(point =>
 				eulerToQuaternion(point.rotation.x, point.rotation.y, point.rotation.z)
 			);
@@ -72,19 +101,21 @@ function main()
 }
 
 function render() {
-	// Debug: log key state each frame
+	const now = performance.now();
+	const dt  = lastTime ? (now - lastTime) / 1000 : 0;
+	lastTime  = now;
 	
 	// Clear the canvas
 	gl.clearColor(1.0, 1.0, 1.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
-	
+
 	// Use orthographic projection that matches track coordinates
 	let projMatrix = ortho(0, 1125, 0, 1125, -1, 1);
-	setUniformMatrix("projMatrix", projMatrix);
-	
+
 	// Use identity camera matrix
 	setUniformMatrix("cameraMatrix", mat4());
-	
+	setUniformMatrix("projMatrix", projMatrix);
+
 	// Log attribute locations
 	let posLoc = gl.getAttribLocation(program, "vPosition");
 	let colLoc = gl.getAttribLocation(program, "vColor");
@@ -101,6 +132,7 @@ function render() {
 		const p = track[idx];
 		const pNext = track[(idx + 1) % track.length];
 		const tangent = [pNext[0] - p[0], pNext[1] - p[1]];
+
 		const angle = Math.atan2(tangent[1], tangent[0]); // radians
 		const cartYOffset = 7.5 * cartScale;
 		const modelMat = mult(
@@ -108,6 +140,7 @@ function render() {
 			rotate((angle * 180 / Math.PI) + 90, 0, 0, 1),
 			translate(0, cartYOffset, 0)
 		);
+
 		// Calculate distance traveled for wheel animation
 		const prevIdx = (idx - 1 + track.length) % track.length;
 		const prevP = track[prevIdx];
@@ -122,7 +155,23 @@ function render() {
 		drawRiderSkeleton(modelMat, performance.now() / 1000);
 		
 		// Update car position
-		carPosition = (carPosition + 0.001) % 1.0;
+		if (curve3D.length > 1 && trackLength > 0) {
+			// figure out where we are on the 3D curve
+			const u3 = carPosition * (curve3D.length - 1);
+			const i3 = Math.floor(u3);
+			const j3 = (i3 + 1) % curve3D.length;
+			const t3 = u3 - i3;
+
+			// interpolate the current height
+			const z0    = curve3D[i3].z;
+			const z1    = curve3D[j3].z;
+			const zCurr = z0 * (1 - t3) + z1 * t3;
+
+			const dh    = initialHeight - zCurr;
+			const speed = Math.sqrt(2 * gravity * Math.max(dh, 0));
+			const frac = speed * dt / trackLength;
+			carPosition = (carPosition + frac) % 1;
+		}
 	}
 	
 	let error = gl.getError();
