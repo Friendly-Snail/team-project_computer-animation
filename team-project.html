@@ -7,12 +7,15 @@
 	<script id="vshader" type="x-shader/x-vertex">
 	attribute vec2 vPosition;
 	attribute vec4 vColor;
+	varying vec4 fColor;
 	uniform mat4 cameraMatrix;
 	uniform mat4 projMatrix;
+	uniform mat4 modelMatrix;
 
 	void main() {
-
-		gl_Position = projMatrix * cameraMatrix * vec4(vPosition, 0.0, 1.0);
+		fColor = vColor;
+		gl_Position = projMatrix * cameraMatrix * modelMatrix * vec4(vPosition, 0.0, 1.0);
+		gl_PointSize = 10.0;
   	}
 	</script>
 	
@@ -22,7 +25,7 @@
 
 	void main() 
 	{
-		gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+		gl_FragColor = fColor;
   	}
 	</script>
 	
