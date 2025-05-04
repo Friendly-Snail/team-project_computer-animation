@@ -4,6 +4,19 @@ let track = [];
 let carPosition = 0.0;
 let carSpeed = 0.002;
 let controlPointQuaternions = [];
+let cartDistance = 0;
+const cartScale = 2.5;
+
+// Rider Skeleton Definition
+const riderSkeleton = [
+	{ name: "root", parent: null, length: 0, angle: 0 },
+	{ name: "torso", parent: "root", length: 20, angle: 0 },
+	{ name: "head", parent: "torso", length: 8, angle: 0 },
+	{ name: "leftArm", parent: "torso", length: 15, angle: 0 },
+	{ name: "rightArm", parent: "torso", length: 15, angle: 0 },
+	{ name: "leftLeg", parent: "root", length: 15, angle: 45 },
+	{ name: "rightLeg", parent: "root", length: 15, angle: -45 }
+];
 
 function main()
 {
@@ -70,10 +83,6 @@ function main()
 			controlPointQuaternions = mySpline.controlPoints.map(point =>
 				eulerToQuaternion(point.rotation.x, point.rotation.y, point.rotation.z)
 			);
-			// Debug: log first 5 track points
-			console.log('First 5 track points:', JSON.stringify(track.slice(0, 5)));
-			// Debug: log all track points
-			console.log('All track points:', JSON.stringify(track));
 		};
 		reader.readAsText(event.target.files[0]);
 	});
@@ -110,11 +119,30 @@ function render() {
 		setAttributes(track, trackColors, 2, 4);
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 		
-		// Draw the cart as a black rectangle at the cart's position
-		const cartPosition = track[Math.floor(carPosition * (track.length - 1))];
-		console.log('Cart position:', cartPosition);
-		setUniformMatrix("modelMatrix", translate(cartPosition[0], cartPosition[1], 0));
-		drawCoasterCar();
+		// Get the current and next point on the track
+		const idx = Math.floor(carPosition * (track.length - 1));
+		const p = track[idx];
+		const pNext = track[(idx + 1) % track.length];
+		const tangent = [pNext[0] - p[0], pNext[1] - p[1]];
+		const angle = Math.atan2(tangent[1], tangent[0]); // radians
+		const cartYOffset = 7.5 * cartScale;
+		const modelMat = mult(
+			translate(p[0], p[1], 0),
+			rotate((angle * 180 / Math.PI) + 90, 0, 0, 1),
+			translate(0, cartYOffset, 0)
+		);
+		// Calculate distance traveled for wheel animation
+		const prevIdx = (idx - 1 + track.length) % track.length;
+		const prevP = track[prevIdx];
+		const segmentDist = Math.sqrt(Math.pow(p[0] - prevP[0], 2) + Math.pow(p[1] - prevP[1], 2));
+		cartDistance += segmentDist * carSpeed;
+		const wheelCircumference = 2 * Math.PI * 3; // r=3
+		const wheelAngle = (cartDistance / wheelCircumference) * 360;
+		setUniformMatrix("modelMatrix", modelMat);
+		drawCoasterCar(modelMat, wheelAngle);
+		
+		// Draw the rider skeleton on top of the cart
+		drawRiderSkeleton(modelMat, performance.now() / 1000);
 		
 		// Update car position
 		carPosition = (carPosition + 0.001) % 1.0;
@@ -185,13 +213,14 @@ function quatToMatrix(q) {
 }
 
 // Draw a visible black rectangle for the cart
-function drawCoasterCar() {
-	// Draw a larger rectangle centered at the origin in model space for visibility
+function drawCoasterCar(cartModelMatrix, wheelAngle = 0) {
+	// Draw the cart body (rectangle)
+	setUniformMatrix("modelMatrix", cartModelMatrix);
 	const carVertices = [
-		vec2(-5, -5),
-		vec2( 5, -5),
-		vec2( 5,  5),
-		vec2(-5,  5)
+		vec2(-5 * cartScale, -5 * cartScale),
+		vec2( 5 * cartScale, -5 * cartScale),
+		vec2( 5 * cartScale,  5 * cartScale),
+		vec2(-5 * cartScale,  5 * cartScale)
 	];
 	const carColors = [
 		vec4(0, 0, 0, 1),
@@ -201,6 +230,31 @@ function drawCoasterCar() {
 	];
 	setAttributes(carVertices, carColors, 2, 4);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, carVertices.length);
+
+	// Draw wheels (bottom left and top left)
+	const wheelOffsets = [
+		[-5 * cartScale, -7.5 * cartScale], // bottom left
+		[-5 * cartScale,  7.5 * cartScale]  // top left
+	];
+	const wheelRadius = 3 * cartScale;
+	for (const [dx, dy] of wheelOffsets) {
+		// Wheel's model matrix: cart's model matrix * translate to wheel offset * rotate for spin
+		let wheelMat = mult(cartModelMatrix, mult(translate(dx, dy, 0), rotate(wheelAngle, 0, 0, 1)));
+		setUniformMatrix("modelMatrix", wheelMat);
+		// Draw wheel as a circle
+		const circleVerts = [];
+		const circleColors = [];
+		for (let i = 0; i <= 20; ++i) {
+			const theta = (i / 20) * 2 * Math.PI;
+			circleVerts.push(vec2(
+				wheelRadius * Math.cos(theta),
+				wheelRadius * Math.sin(theta)
+			));
+			circleColors.push(vec4(0.2, 0.2, 0.2, 1));
+		}
+		setAttributes(circleVerts, circleColors, 2, 4);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, circleVerts.length);
+	}
 }
 
 // Quaternion helper: Euler angles to quaternion
@@ -220,6 +274,81 @@ function eulerToQuaternion(x, y, z) {
 		c1 * c2 * s3 + s1 * s2 * c3,
 		c1 * c2 * c3 - s1 * s2 * s3
 	);
+}
+
+// Draw the rider skeleton on top of the cart
+function drawRiderSkeleton(modelMatrix, time) {
+	// Animate arms and head
+	const armSwing = Math.sin(time * 2) * 45; // degrees
+	const headBob = Math.sin(time * 2) * 10; // degrees
+
+	// Compute world positions for each joint
+	const positions = { root: [0, 10] };
+	const angles = {
+		root: 0,
+		torso: 0,
+		head: headBob,
+		leftArm: -60 + armSwing,
+		rightArm: 60 - armSwing,
+		leftLeg: 45,
+		rightLeg: -45
+	};
+
+	// Helper to get endpoint of a bone
+	function endpoint(start, angleDeg, length) {
+		const rad = angleDeg * Math.PI / 180;
+		return [
+			start[0] + length * Math.cos(rad),
+			start[1] + length * Math.sin(rad)
+		];
+	}
+
+	// Torso
+	positions.torso = endpoint(positions.root, angles.torso + angles.root, 20);
+	// Head
+	positions.head = endpoint(positions.torso, angles.head + angles.torso + angles.root, 8);
+	// Left Arm
+	positions.leftArm = endpoint(positions.torso, angles.leftArm + angles.torso + angles.root, 15);
+	// Right Arm
+	positions.rightArm = endpoint(positions.torso, angles.rightArm + angles.torso + angles.root, 15);
+	// Left Leg
+	positions.leftLeg = endpoint(positions.root, angles.leftLeg + angles.root, 15);
+	// Right Leg
+	positions.rightLeg = endpoint(positions.root, angles.rightLeg + angles.root, 15);
+
+	// Draw bones as lines
+	const lines = [
+		// [start, end, color]
+		[positions.root, positions.torso, vec4(0,0,0,1)], 
+		[positions.torso, positions.head, vec4(0,0,0,1)],
+		[positions.torso, positions.leftArm, vec4(0,0,0,1)],
+		[positions.torso, positions.rightArm, vec4(0,0,0,1)],
+		[positions.root, positions.leftLeg, vec4(0,0,0,1)],
+		[positions.root, positions.rightLeg, vec4(0,0,0,1)]
+	];
+
+	for (const [start, end, color] of lines) {
+		setUniformMatrix("modelMatrix", modelMatrix);
+		setAttributes([vec2(start[0], start[1]), vec2(end[0], end[1])], [color, color], 2, 4);
+		gl.drawArrays(gl.LINES, 0, 2);
+	}
+
+	// Draw head as a circle (approximate with a triangle fan)
+	const headCenter = positions.head;
+	const headRadius = 4;
+	const circleVerts = [];
+	const circleColors = [];
+	for (let i = 0; i <= 20; ++i) {
+		const theta = (i / 20) * 2 * Math.PI;
+		circleVerts.push(vec2(
+			headCenter[0] + headRadius * Math.cos(theta),
+			headCenter[1] + headRadius * Math.sin(theta)
+		));
+		circleColors.push(vec4(0,0,0,1));
+	}
+	setUniformMatrix("modelMatrix", modelMatrix);
+	setAttributes(circleVerts, circleColors, 2, 4);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, circleVerts.length);
 }
 
 window.addEventListener('load', main);
