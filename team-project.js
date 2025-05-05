@@ -187,6 +187,8 @@ function render() {
 		dotA = Math.max(-1, Math.min(1, dotA));   // clamp into [‑1,1]
 		const turnAngle = Math.acos(dotA);
 
+
+
 		//curvature
 		const curvature = turnAngle / ((len1 + len2) * 0.5);
 
