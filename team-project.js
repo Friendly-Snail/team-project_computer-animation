@@ -151,8 +151,6 @@ function render() {
 		// Get the current and next point on the track
 		const idx = Math.floor(carPosition * (track.length - 1));
 		const p = track[idx];
-		const pNext = track[(idx + 1) % track.length];
-		const tangent = [pNext[0] - p[0], pNext[1] - p[1]];
 
 		const cartYOffset = 7.5 * cartScale;
 
