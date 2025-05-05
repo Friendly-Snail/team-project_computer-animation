@@ -57,6 +57,9 @@ function main() {
 	setUniformMatrix("cameraMatrix", cameraMatrix);
 	setUniformMatrix("projMatrix", projMatrix);
 
+	// initialize lastTime early
+	lastTime = performance.now();
+
 	const fileInput = document.getElementById("files");
 	const mySpline = new Spline();
 	fileInput.addEventListener("change", function(event) {
@@ -69,11 +72,12 @@ function main() {
 
 			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 			for (const p of catmullPoints) {
-				if (p.x < minX) minX = p.x;
-				if (p.y < minY) minY = p.y;
-				if (p.x > maxX) maxX = p.x;
-				if (p.y > maxY) maxY = p.y;
+				minX = Math.min(minX, p.x);
+				minY = Math.min(minY, p.y);
+				maxX = Math.max(maxX, p.x);
+				maxY = Math.max(maxY, p.y);
 			}
+
 			const width = maxX - minX;
 			const height = maxY - minY;
 			const canvasSize = 650;
@@ -82,15 +86,20 @@ function main() {
 			const offset = vec2((canvasSize - scale * width) / 2 - scale * minX, (canvasSize - scale * height) / 2 - scale * minY);
 			track = catmullPoints.map(p => add(vec2(p.x * scale, p.y * scale), offset));
 			vertexCount = track.length;
+
 			trackLength = 0;
 			for (let i = 1; i < track.length; i++) {
 				const dx = track[i][0] - track[i - 1][0];
 				const dy = track[i][1] - track[i - 1][1];
 				trackLength += Math.hypot(dx, dy);
 			}
-			lastTime = performance.now();
-			initialHeight = curve3D[0].z;
-			energy = mass * gravity * initialHeight;
+
+			// set initial height and energy safely
+			if (curve3D.length > 0) {
+				initialHeight = curve3D[0].z;
+				energy = mass * gravity * initialHeight;
+			}
+
 			controlPointQuaternions = mySpline.controlPoints.map(p => eulerToQuaternion(p.rotation.x, p.rotation.y, p.rotation.z));
 		};
 		reader.readAsText(event.target.files[0]);
