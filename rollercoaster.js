@@ -1,8 +1,8 @@
+
 let gl, program;
 let vertexCount;
 let track = [];
 let carPosition = 0.0;
-let carSpeed = 0.002;
 let controlPointQuaternions = [];
 let cartDistance = 0;
 const cartScale = 2.5;
@@ -11,14 +11,14 @@ const cartScale = 2.5;
 let mass = 1.0;
 let gravity = 100;
 
-let energy = 0.0;
-let trackLength = 0.0;
-
 let lastTime = null;
 let curve3D = [];
 let initialHeight = 0;
 
-// Rider Skeleton Definition
+// speed slider multiplier (1.0 = nominal speed)
+let speedMultiplier = 1.0;
+
+// Rider Skeleton Definition (unchanged)
 const riderSkeleton = [
 	{ name: "root", parent: null, length: 0, angle: 0 },
 	{ name: "torso", parent: "root", length: 20, angle: 0 },
@@ -30,234 +30,156 @@ const riderSkeleton = [
 ];
 
 function main() {
-	// Retrieve <canvas> element
-	let canvas = document.getElementById('webgl');
-	if (!canvas) {
-		return;
-	}
-
-	// Get the rendering context for WebGL
-	gl = WebGLUtils.setupWebGL(canvas, null);
-
-	// Initialize shaders
+	// === SETUP CANVAS & WEBGL ===
+	const canvas = document.getElementById('webgl');
+	if (!canvas) return;
+	gl = WebGLUtils.setupWebGL(canvas);
 	program = initShaders(gl, "vertex-shader", "fragment-shader");
-	if (!program) return;
 	gl.useProgram(program);
-
-	// Set up the viewport
 	gl.viewport(0, 0, canvas.width, canvas.height);
 
-	// set up the camera view matrix (eye, at, up)
-	let cameraMatrix = lookAt(
-		vec3(0.0, 0.0, 2.0),  // eye position (camera)
-		vec3(0.0, 0.0, 0.0),  // point looking at
-		vec3(0.0, 1.0, 0.0)   // up vector
+	// camera + projection (unchanged)
+	const cameraMatrix = lookAt(
+		vec3(0,0,2),
+		vec3(0,0,0),
+		vec3(0,1,0)
 	);
-
-	// set up a perspective projection (FOV, aspect, near, far)
-	let projMatrix = perspective(120, 1, 0.1, 10);
-
-	// pass matrices to the shaders as uniforms
+	const projMatrix = perspective(120, 1, 0.1, 10);
 	setUniformMatrix("cameraMatrix", cameraMatrix);
 	setUniformMatrix("projMatrix", projMatrix);
 
-	// set up file input handling for spline upload
-	const fileInput = document.getElementById("files");
-	const mySpline = new Spline();
-
-	// when a file is selected:
-	fileInput.addEventListener("change", function(event) {
-		const reader = new FileReader();
-
-		reader.onload = function(e) {
-			// read and parse the spline file content
-			const fileContents = e.target.result;
-			mySpline.parse(fileContents); // Populate controlPoints
-
-			// generate interpolated points along the spline using Catmull-Rom
-			const catmullPoints = mySpline.generateCatmullRomCurve();
-			curve3D = catmullPoints; // 3D points for speed and elevation
-
-			// calculate bounding box of the curve for scaling and centering
-			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-			for (const p of catmullPoints) {
-				if (p.x < minX) minX = p.x;
-				if (p.y < minY) minY = p.y;
-				if (p.x > maxX) maxX = p.x;
-				if (p.y > maxY) maxY = p.y;
-			}
-
-			// auto-scale and center the track inside canvas
-			const width = maxX - minX;
-			const height = maxY - minY;
-			const cw = canvas.width;
-			const ch = canvas.height;
-			const margin = 40;
-			const scale = Math.min(
-				(cw - margin * 2) / width,
-				(ch - margin * 2) / height
-			);
-			const offset = vec2(
-				(cw - scale * width)  / 2 - scale * minX,
-				(ch - scale * height) / 2 - scale * minY
-			);
-
-			// store 2D track points (scaled and centered) for rendering
-			track = catmullPoints.map(p =>
-				add(vec2(p.x * scale, p.y * scale), offset)
-			);
-			vertexCount = track.length;
-
-			// compute total length of the 2D track
-			trackLength = 0;
-			for (let i = 1; i < track.length; i++) {
-				const dx = track[i][0] - track[i-1][0];
-				const dy = track[i][1] - track[i-1][1];
-				trackLength += Math.hypot(dx, dy);
-			}
-
-			// initialize physics: set energy based on initial height (z-axis)
-			lastTime = performance.now();
-			initialHeight = curve3D[0].z;
-			energy = mass * gravity * initialHeight;
-
-			// convert euler angles to quaternions for SLERP-based rotation
-			controlPointQuaternions = mySpline.controlPoints.map(point =>
-				eulerToQuaternion(point.rotation.x, point.rotation.y, point.rotation.z)
-			);
-		};
-
-		// read the selected file as text
-		reader.readAsText(event.target.files[0]);
+	// === HOOK UP SPEED SLIDER ===
+	const speedSlider = document.getElementById('speed-slider');
+	// assume your HTML has: <input type="range" id="speed-slider" min="0.1" max="2" step="0.01" value="1">
+	speedSlider.addEventListener('input', e => {
+		speedMultiplier = parseFloat(e.target.value);
 	});
 
-	// start the rendering loop
+	// === FILE INPUT FOR SPLINE ===
+	const fileInput = document.getElementById("files");
+	const mySpline  = new Spline();
+	fileInput.addEventListener("change", ev => {
+		const reader = new FileReader();
+		reader.onload = e => {
+			mySpline.parse(e.target.result);
+			curve3D = mySpline.generateCatmullRomCurve();
+
+			// compute 2D bounding box & auto-scale/center
+			let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
+			for (let p of curve3D) {
+				minX = Math.min(minX, p.x);
+				minY = Math.min(minY, p.y);
+				maxX = Math.max(maxX, p.x);
+				maxY = Math.max(maxY, p.y);
+			}
+			const width  = maxX - minX;
+			const height = maxY - minY;
+			const cw = canvas.width, ch = canvas.height;
+			const margin = 40;
+			const scale = Math.min((cw - margin*2)/width, (ch - margin*2)/height);
+			const offset = vec2(
+				(cw - scale*width)/2  - scale*minX,
+				(ch - scale*height)/2 - scale*minY
+			);
+
+			track = curve3D.map(p => add(vec2(p.x*scale, p.y*scale), offset));
+			vertexCount = track.length;
+
+			// compute 2D track length
+			trackLength = 0;
+			for (let i=1; i<track.length; i++) {
+				const dx = track[i][0] - track[i-1][0];
+				const dy = track[i][1] - track[i-1][1];
+				trackLength += Math.hypot(dx,dy);
+			}
+
+			// init physics & SLERP quaternions
+			lastTime = performance.now();
+			initialHeight = curve3D[0].z;
+			controlPointQuaternions = mySpline.controlPoints.map(pt =>
+				eulerToQuaternion(pt.rotation.x, pt.rotation.y, pt.rotation.z)
+			);
+		};
+		reader.readAsText(ev.target.files[0]);
+	});
+
+	// start render loop
 	render();
 }
 
 function render() {
 	const now = performance.now();
-	const dt  = lastTime ? (now - lastTime) / 1000 : 0;
-	lastTime  = now;
+	const dt  = lastTime ? (now - lastTime)/1000 : 0;
+	lastTime = now;
 
-	// Clear the canvas
-	gl.clearColor(1.0, 1.0, 1.0, 1.0);
+	// clear
+	gl.clearColor(1,1,1,1);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// use orthographic projection that matches track coordinates
-	const cw = gl.canvas.width;
-	const ch = gl.canvas.height;
-	let projMatrix = ortho(0, cw, 0, ch, -1, 1);
-
-	// use identity camera matrix
+	// update projection to full canvas
+	const cw = gl.canvas.width, ch = gl.canvas.height;
+	const orthoM = ortho(0, cw, 0, ch, -1, 1);
 	setUniformMatrix("cameraMatrix", mat4());
-	setUniformMatrix("projMatrix", projMatrix);
-
-	// log attribute locations
-	let posLoc = gl.getAttribLocation(program, "vPosition");
-	let colLoc = gl.getAttribLocation(program, "vColor");
+	setUniformMatrix("projMatrix", orthoM);
 
 	if (vertexCount > 0) {
-		// Draw the track in red
+		// draw track
 		setUniformMatrix("modelMatrix", mat4());
-		const trackColors = new Array(track.length).fill(vec4(1, 0, 0, 1));
-		setAttributes(track, trackColors, 2, 4);
+		setAttributes(track, new Array(track.length).fill(vec4(1,0,0,1)), 2, 4);
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
-		// Get the current and next point on the track
-		const idx = Math.floor(carPosition * (track.length - 1));
-		const p = track[idx];
+		// find current segment
+		const idx = Math.floor(carPosition * (track.length-1));
+		const p   = track[idx];
+		const prevIdx = (idx - 1 + track.length) % track.length;
+		const pPrev   = track[prevIdx];
 
-		const cartYOffset = 7.5 * cartScale;
+		// compute world-space speed along the 3D curve
+		const u3 = carPosition * (curve3D.length - 1);
+		const i3 = Math.floor(u3), j3 = (i3+1) % curve3D.length;
+		const t3 = u3 - i3;
+		const z0 = curve3D[i3].z, z1 = curve3D[j3].z;
+		const dz = z1 - z0;
+		const baseSpeed = 50;
+		// ensure speed ≥ 20, then apply user slider multiplier
+		const speed = Math.max(baseSpeed - 3*gravity*dz, 20) * speedMultiplier;
 
+		// advance along track
+		carPosition = (carPosition + speed*dt/trackLength) % 1;
+
+		// SLERP for bank/orientation
 		const cpCount = controlPointQuaternions.length;
-		const uQ = carPosition * (cpCount - 1);
-		const iQ = Math.floor(uQ);
-		const jQ = (iQ + 1) % cpCount;
-		const tQ = uQ - iQ;
-
-		// SLERP
-		const qInterp  = slerp(
-			controlPointQuaternions[iQ],
-			controlPointQuaternions[jQ],
-			tQ
-		);
+		const uQ = carPosition*(cpCount-1);
+		const iQ = Math.floor(uQ), jQ = (iQ+1)%cpCount, tQ = uQ - iQ;
+		const qInterp  = slerp(controlPointQuaternions[iQ], controlPointQuaternions[jQ], tQ);
 		const orientMat = quatToMatrix(qInterp);
 
-		// calculate previous & next indices for stretch/squash
-		const prevIdx = (idx - 1 + track.length) % track.length;
-		const nextIdx = (idx + 1) % track.length;
-		const pPrev = track[prevIdx];
-		const pNext = track[nextIdx];
+		// wheels spin (still uses a fixed cartSpeed for visual spin)
+		const segmentDist = Math.hypot(p[0]-pPrev[0], p[1]-pPrev[1]);
+		cartDistance += segmentDist * speedMultiplier;  // spin speed tracks slider too
+		const wheelAngle = (cartDistance / (2*Math.PI*3)) * 360;
 
-		// calculate vectors between points
-		const v1 = [p[0] - pPrev[0], p[1] - pPrev[1]];
-		const v2 = [pNext[0] - p[0], pNext[1] - p[1]];
+		// shape deformation now tied to speed
+		// > faster = more stretch
+		const speedFactor   = speed / baseSpeed;     // 1.0 at nominal, >1 when faster
+		const stretchFactor = 1 + (speedFactor - 1)*2; // tune “*2” for more dramatic effect
+		const squashFactor  = 1 / (stretchFactor * 10);
 
-		// calculate angle between vectors
-		const dot = v1[0]*v2[0] + v1[1]*v2[1];
-		const mag1 = Math.hypot(v1[0], v1[1]);
-		const mag2 = Math.hypot(v2[0], v2[1]);
-		const cosA = dot / (mag1 * mag2);
-		const angle = Math.acos(Math.max(-1, Math.min(1, cosA)));
-
-		// dramatic stretch/squash
-		const stretchFactor = 1.0 + (angle * 5000);
-		const squashFactor  = 1.0 / (stretchFactor * 10);
-
-		const deformMatrix = scalem(
-			cartScale * squashFactor,
-			cartScale * stretchFactor,
-			cartScale
-		);
-
-		// build final model matrix with deformation
+		// build model matrix
+		const cartYOffset = 7.5 * cartScale;
 		const modelMat = mult(
-			translate(p[0], p[1], 0), // position on track
-			orientMat, // orientation
-			translate(0, cartYOffset, 0), // offset from track
-			deformMatrix // apply deformation
+			translate(p[0], p[1], 0),
+			orientMat,
+			translate(0, cartYOffset, 0),
+			scalem(cartScale*squashFactor, cartScale*stretchFactor, cartScale)
 		);
 
 		setUniformMatrix("modelMatrix", modelMat);
-
-		// wheel animation
-		const segmentDist = Math.hypot(p[0] - pPrev[0], p[1] - pPrev[1]);
-		cartDistance += segmentDist * carSpeed;
-		const wheelCircumference = 2 * Math.PI * 3; // r=3
-		const wheelAngle = (cartDistance / wheelCircumference) * 360;
-
-		// Draw the cart with deformation
 		drawCoasterCar(modelMat, wheelAngle);
-
-		// Draw the rider skeleton on top of the cart
-		drawRiderSkeleton(modelMat, performance.now() / 1000);
-
-		// update care position along the 3D curve
-		if (curve3D.length > 1 && trackLength > 0) {
-			const u3 = carPosition * (curve3D.length - 1);
-			const i3 = Math.floor(u3);
-			const j3 = (i3 + 1) % curve3D.length;
-			const t3 = u3 - i3;
-
-			const z0 = curve3D[i3].z;
-			const z1 = curve3D[j3].z;
-			const dz = z1 - z0;
-
-			const baseSpeed = 50;
-			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20);
-			const frac = speed * dt / trackLength;
-			carPosition = (carPosition + frac) % 1;
-		}
+		drawRiderSkeleton(modelMat, now/1000);
 	}
 
-	// check and report any WebGL errors
-	let error = gl.getError();
-	if (error !== gl.NO_ERROR) {
-		console.error('WebGL error:', error);
-	}
-
-	// schedule the next animation frame
+	// next frame
 	requestAnimationFrame(render);
 }
 
