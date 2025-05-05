@@ -1,4 +1,3 @@
-
 let gl, program;
 let vertexCount;
 let track = [];
@@ -10,6 +9,9 @@ const cartScale = 2.5;
 // physics variables
 let mass = 1.0;
 let gravity = 100;
+
+// shape‐deformation tuning: higher = more dramatic stretch/squash
+const deformationIntensity = 5.0;
 
 let lastTime = null;
 let curve3D = [];
@@ -30,7 +32,7 @@ const riderSkeleton = [
 ];
 
 function main() {
-	// === SETUP CANVAS & WEBGL ===
+	// setup canvas and WebGL
 	const canvas = document.getElementById('webgl');
 	if (!canvas) return;
 	gl = WebGLUtils.setupWebGL(canvas);
@@ -48,14 +50,13 @@ function main() {
 	setUniformMatrix("cameraMatrix", cameraMatrix);
 	setUniformMatrix("projMatrix", projMatrix);
 
-	// === HOOK UP SPEED SLIDER ===
+	// hook up speed slider
 	const speedSlider = document.getElementById('speed-slider');
-	// assume your HTML has: <input type="range" id="speed-slider" min="0.1" max="2" step="0.01" value="1">
 	speedSlider.addEventListener('input', e => {
 		speedMultiplier = parseFloat(e.target.value);
 	});
 
-	// === FILE INPUT FOR SPLINE ===
+	// file input for spline
 	const fileInput = document.getElementById("files");
 	const mySpline  = new Spline();
 	fileInput.addEventListener("change", ev => {
@@ -155,23 +156,29 @@ function render() {
 		const orientMat = quatToMatrix(qInterp);
 
 		// wheels spin (still uses a fixed cartSpeed for visual spin)
-		const segmentDist = Math.hypot(p[0]-pPrev[0], p[1]-pPrev[1]);
+		const segmentDist = Math.hypot(p[0] - pPrev[0], p[1] - pPrev[1]);
 		cartDistance += segmentDist * speedMultiplier;  // spin speed tracks slider too
-		const wheelAngle = (cartDistance / (2*Math.PI*3)) * 360;
+		const wheelAngle = (cartDistance / (2 * Math.PI * 3)) * 360;
 
 		// shape deformation now tied to speed
-		// > faster = more stretch
-		const speedFactor   = speed / baseSpeed;     // 1.0 at nominal, >1 when faster
-		const stretchFactor = 1 + (speedFactor - 1)*2; // tune “*2” for more dramatic effect
-		const squashFactor  = 1 / (stretchFactor * 10);
+		const speedFactor   = speed / baseSpeed; // 1.0 at nominal, >1 when faster
+		// make the cart stretch and squash more dramatically:
+		const stretchFactor = 1 + (speedFactor - 1) * deformationIntensity;
+		// squash inversely proportional to stretch
+		const squashFactor  = 1 / stretchFactor;
 
-		// build model matrix
+		// build model matrix with more pronounced squish/stretch
 		const cartYOffset = 7.5 * cartScale;
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
 			orientMat,
 			translate(0, cartYOffset, 0),
-			scalem(cartScale*squashFactor, cartScale*stretchFactor, cartScale)
+			// squash in X, stretch in Y
+			scalem(
+				cartScale * squashFactor,
+				cartScale * stretchFactor,
+				cartScale
+			)
 		);
 
 		setUniformMatrix("modelMatrix", modelMat);
