@@ -16,7 +16,14 @@ class Spline {
         const numControlPoints = parseInt(lines[index++]);
         this.time = parseFloat(lines[index++]);
 
+        // Debug: check if the number of lines matches expectation
+        const expectedLines = 3 + numControlPoints * 2;
+        if (lines.length !== expectedLines) {
+            console.warn(`Spline.parse: Expected ${expectedLines} lines for ${numControlPoints} control points, but got ${lines.length}`);
+        }
+
         //loop over control points
+        this.controlPoints = [];
         for (let i = 0; i < numControlPoints; i++) {
             const posValues = lines[index++].split(',').map(Number);
             const rotValues = lines[index++].split(',').map(Number);
@@ -25,6 +32,8 @@ class Spline {
                 rotation: { x: rotValues[0], y: rotValues[1], z: rotValues[2] }
             });
         }
+        // Debug: print control points
+        console.log('Spline.parse: Parsed control points:', this.controlPoints);
     }
 
     //reused method from ICE03
@@ -56,6 +65,8 @@ class Spline {
                 curve.push({ x, y, z });
             }
         }
+        // Debug: print curve length
+        console.log('Spline.generateCatmullRomCurve: Generated curve with', curve.length, 'points from', points.length, 'control points.');
         return curve;
     }
 
