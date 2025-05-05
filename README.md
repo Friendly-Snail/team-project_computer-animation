@@ -64,7 +64,8 @@ file and then choose the spline.txt file in the choose file toggle and the anima
 *TODO*
 
 ### Matthew Gatta
-*TODO*
+*I worked on wring slerp and quatToMatrix code. I worked on forces with Preston. I also added the Splines and 
+made it so you could input them. I added the CatmullRomCurve method too*
 
 ### Preston Van Fleet
 For this project, I worked on the hierarchical modeling creating the wheels on the cart and the skeleton. 
