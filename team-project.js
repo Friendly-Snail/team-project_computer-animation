@@ -68,13 +68,30 @@ function main()
 			mySpline.parse(fileContents);
 			const catmullPoints = mySpline.generateCatmullRomCurve();
 			curve3D = catmullPoints;
-			// Scale and center the track for a 650x650 canvas
-			const scale = 200;
-			const offset = vec2(325, 325);
-			const curve2D = catmullPoints.map(p => add(vec2(p.x * scale, p.y * scale), offset));
+
+			// --- Auto-scale and center the track ---
+			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+			for (const p of catmullPoints) {
+				if (p.x < minX) minX = p.x;
+				if (p.y < minY) minY = p.y;
+				if (p.x > maxX) maxX = p.x;
+				if (p.y > maxY) maxY = p.y;
+			}
+			const width = maxX - minX;
+			const height = maxY - minY;
+			const canvasSize = 650;
+			const margin = 40;
+			const scale = Math.min(
+				(canvasSize - margin * 2) / width,
+				(canvasSize - margin * 2) / height
+			);
+			const offset = vec2(
+				(canvasSize - scale * width) / 2 - scale * minX,
+				(canvasSize - scale * height) / 2 - scale * minY
+			);
 			track = catmullPoints.map(p =>
 				add(vec2(p.x * scale, p.y * scale), offset)
-			)
+			);
 			vertexCount = track.length;
 
 			trackLength = 0;
