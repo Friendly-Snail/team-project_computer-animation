@@ -7,15 +7,15 @@ let controlPointQuaternions = [];
 let cartDistance = 0;
 const cartScale = 2.5;
 
-//physics variables
-let mass= 1.0;
+// physics variables
+let mass = 1.0;
 let gravity = 100;
 
 let energy = 0.0;
 let trackLength = 0.0;
 
 let lastTime = null;
-let curve3D       = [];
+let curve3D = [];
 let initialHeight = 0;
 
 // Rider Skeleton Definition
@@ -32,7 +32,7 @@ const riderSkeleton = [
 function main() {
 	// Retrieve <canvas> element
 	let canvas = document.getElementById('webgl');
-	if (!canvas) { // if canvas not found, exit early
+	if (!canvas) {
 		return;
 	}
 
@@ -45,7 +45,7 @@ function main() {
 	gl.useProgram(program);
 
 	// Set up the viewport
-	gl.viewport( 0, 0, canvas.width, canvas.height );
+	gl.viewport(0, 0, canvas.width, canvas.height);
 
 	// set up the camera view matrix (eye, at, up)
 	let cameraMatrix = lookAt(
@@ -90,15 +90,16 @@ function main() {
 			// auto-scale and center the track inside canvas
 			const width = maxX - minX;
 			const height = maxY - minY;
-			const canvasSize = 650;
+			const cw = canvas.width;
+			const ch = canvas.height;
 			const margin = 40;
 			const scale = Math.min(
-				(canvasSize - margin * 2) / width,
-				(canvasSize - margin * 2) / height
+				(cw - margin * 2) / width,
+				(ch - margin * 2) / height
 			);
 			const offset = vec2(
-				(canvasSize - scale * width) / 2 - scale * minX,
-				(canvasSize - scale * height) / 2 - scale * minY
+				(cw - scale * width)  / 2 - scale * minX,
+				(ch - scale * height) / 2 - scale * minY
 			);
 
 			// store 2D track points (scaled and centered) for rendering
@@ -143,14 +144,16 @@ function render() {
 	gl.clearColor(1.0, 1.0, 1.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// Use orthographic projection that matches track coordinates
-	let projMatrix = ortho(0, 1125, 0, 1125, -1, 1);
+	// use orthographic projection that matches track coordinates
+	const cw = gl.canvas.width;
+	const ch = gl.canvas.height;
+	let projMatrix = ortho(0, cw, 0, ch, -1, 1);
 
-	// Use identity camera matrix
+	// use identity camera matrix
 	setUniformMatrix("cameraMatrix", mat4());
 	setUniformMatrix("projMatrix", projMatrix);
 
-	// Log attribute locations
+	// log attribute locations
 	let posLoc = gl.getAttribLocation(program, "vPosition");
 	let colLoc = gl.getAttribLocation(program, "vColor");
 
@@ -168,12 +171,12 @@ function render() {
 		const cartYOffset = 7.5 * cartScale;
 
 		const cpCount = controlPointQuaternions.length;
-		const uQ      = carPosition * (cpCount - 1);
-		const iQ      = Math.floor(uQ);
-		const jQ      = (iQ + 1) % cpCount;
-		const tQ      = uQ - iQ;
+		const uQ = carPosition * (cpCount - 1);
+		const iQ = Math.floor(uQ);
+		const jQ = (iQ + 1) % cpCount;
+		const tQ = uQ - iQ;
 
-		//SLERP
+		// SLERP
 		const qInterp  = slerp(
 			controlPointQuaternions[iQ],
 			controlPointQuaternions[jQ],
@@ -181,51 +184,45 @@ function render() {
 		);
 		const orientMat = quatToMatrix(qInterp);
 
-		// Calculate angle between track segments
+		// calculate previous & next indices for stretch/squash
 		const prevIdx = (idx - 1 + track.length) % track.length;
 		const nextIdx = (idx + 1) % track.length;
 		const pPrev = track[prevIdx];
 		const pNext = track[nextIdx];
 
-		// Calculate vectors between points
+		// calculate vectors between points
 		const v1 = [p[0] - pPrev[0], p[1] - pPrev[1]];
 		const v2 = [pNext[0] - p[0], pNext[1] - p[1]];
 
-		// Calculate angle between vectors
-		const dot = v1[0] * v2[0] + v1[1] * v2[1];
-		const mag1 = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
-		const mag2 = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
-		const cosAngle = dot / (mag1 * mag2);
-		const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+		// calculate angle between vectors
+		const dot = v1[0]*v2[0] + v1[1]*v2[1];
+		const mag1 = Math.hypot(v1[0], v1[1]);
+		const mag2 = Math.hypot(v2[0], v2[1]);
+		const cosA = dot / (mag1 * mag2);
+		const angle = Math.acos(Math.max(-1, Math.min(1, cosA)));
 
-		// Make stretching extremely dramatic based only on angle
+		// dramatic stretch/squash
 		const stretchFactor = 1.0 + (angle * 5000);
-		const squashFactor = 1.0 / (stretchFactor * 10);
+		const squashFactor  = 1.0 / (stretchFactor * 10);
 
-		// Debug logging
-		console.log('Angle:', angle.toFixed(2),
-			'Stretch:', stretchFactor.toFixed(2),
-			'Squash:', squashFactor.toFixed(4));
-
-		// Create deformation matrix with more dramatic scaling
 		const deformMatrix = scalem(
 			cartScale * squashFactor,
 			cartScale * stretchFactor,
 			cartScale
 		);
 
-		// Build final model matrix with deformation
+		// build final model matrix with deformation
 		const modelMat = mult(
-			translate(p[0], p[1], 0),    // Position on track
-			orientMat,                    // Orientation
-			translate(0, cartYOffset, 0), // Offset from track
-			deformMatrix                  // Apply deformation
+			translate(p[0], p[1], 0), // position on track
+			orientMat, // orientation
+			translate(0, cartYOffset, 0), // offset from track
+			deformMatrix // apply deformation
 		);
 
 		setUniformMatrix("modelMatrix", modelMat);
 
-		// Calculate distance traveled for wheel animation
-		const segmentDist = Math.sqrt(Math.pow(p[0] - pPrev[0], 2) + Math.pow(p[1] - pPrev[1], 2));
+		// wheel animation
+		const segmentDist = Math.hypot(p[0] - pPrev[0], p[1] - pPrev[1]);
 		cartDistance += segmentDist * carSpeed;
 		const wheelCircumference = 2 * Math.PI * 3; // r=3
 		const wheelAngle = (cartDistance / wheelCircumference) * 360;
@@ -236,31 +233,20 @@ function render() {
 		// Draw the rider skeleton on top of the cart
 		drawRiderSkeleton(modelMat, performance.now() / 1000);
 
-		// Update car position
-		if (curve3D.length > 1 && trackLength > 0) { // check if the 3D curve and track have valid data to proceed
-
-			// compute the fractional index along the 3D curve
+		// update care position along the 3D curve
+		if (curve3D.length > 1 && trackLength > 0) {
 			const u3 = carPosition * (curve3D.length - 1);
-			const i3 = Math.floor(u3); // current point index
-			const j3 = (i3 + 1) % curve3D.length; // next point index
-			const t3 = u3 - i3; // interpolation factor between i3 and j3
+			const i3 = Math.floor(u3);
+			const j3 = (i3 + 1) % curve3D.length;
+			const t3 = u3 - i3;
 
-			// interpolate between z values of current and next control points
 			const z0 = curve3D[i3].z;
 			const z1 = curve3D[j3].z;
-			const zCurr = z0 * (1 - t3) + z1 * t3; // linearly interpolate height
-
-			// compute local slope (difference in elevation between two adjacent points)
 			const dz = z1 - z0;
 
-			// define a base speed and modify it using local slope and gravity
 			const baseSpeed = 50;
-			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20); // ensure min speed of 20
-
-			// determine how much to move the cart in this frame, proportional to speed
+			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20);
 			const frac = speed * dt / trackLength;
-
-			// update car position (wraps around using modulo 1 for looping animation)
 			carPosition = (carPosition + frac) % 1;
 		}
 	}
