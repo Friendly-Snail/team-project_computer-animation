@@ -24,10 +24,12 @@ around corners, have a rider wave their arms, have multiple hierarchical models 
 gravity to speed up the cart.
 
 ### Splines
-*TODO*
+*We parse a text file of 3D control points and generate a Catmull–Rom spline, 
+sampling it to get our track vertices and tangents*
 
 ### Quaternions & SLERPing
-*TODO*
+*Each control point can include a quaternion. Each frame we slerp between the two nearest quats
+and build a 4×4 rotation matrix so the cart banks smoothly.*
 
 ### Shape Deformation
 *TODO*
