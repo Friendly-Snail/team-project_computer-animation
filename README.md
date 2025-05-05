@@ -57,7 +57,8 @@ file and then choose the spline.txt file in the choose file toggle and the anima
 ---
 
 ## Challenges
-*None*
+A major challenge of the project was the shape deformation. We tried to use angles to have the cart stretch
+around corners. It does slightly change shape, but not as much as we would like it too.
 
 ---
 
