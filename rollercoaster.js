@@ -141,7 +141,8 @@ function render() {
 			scalem(cartScale * stretchX, cartScale * stretchY, cartScale)
 		);
 		setUniformMatrix("modelMatrix", modelMat);
-		drawCoasterCar(modelMat);
+		const cartColor = getSpeedColor(speedFactor);
+		drawCoasterCar(modelMat, cartColor);
 		drawRiderSkeleton(modelMat, now / 1000);
 	}
 
@@ -188,26 +189,30 @@ function slerp(q1, q2, t) {
 	);
 }
 
+function getSpeedColor(speedFactor) {
+	// Linearly interpolate between blue (slow) and red (fast)
+	const r = 0.2 + speedFactor * 0.8;   // from 0.2 -> 1.0
+	const g = 0.2 * (1 - speedFactor);   // from 0.2 -> 0.0
+	const b = 1.0 - speedFactor * 0.8;   // from 1.0 -> 0.2
+	return vec4(r, g, b, 1);
+}
+
 // Draw a visible black rectangle for the cart
-function drawCoasterCar(cartModelMatrix, wheelAngle = 0) {
+function drawCoasterCar(cartModelMatrix, cartColor, wheelAngle = 0) {
 	// Draw the cart body (rectangle)
 	setUniformMatrix("modelMatrix", cartModelMatrix);
+
 	const carVertices = [
 		vec2(-5 * cartScale, -5 * cartScale),
 		vec2( 5 * cartScale, -5 * cartScale),
 		vec2( 5 * cartScale,  5 * cartScale),
 		vec2(-5 * cartScale,  5 * cartScale)
 	];
-	const carColors = [
-		vec4(0, 0, 0, 1),
-		vec4(0, 0, 0, 1),
-		vec4(0, 0, 0, 1),
-		vec4(0, 0, 0, 1)
-	];
+	const carColors = new Array(carVertices.length).fill(cartColor);
 	setAttributes(carVertices, carColors, 2, 4);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, carVertices.length);
 
-	// Draw wheels (bottom left and top left)
+	// Draw wheels (bottom left and top left) [wheels stay gray]
 	const wheelOffsets = [
 
 		[-5 * cartScale, -7.5 * cartScale], 
