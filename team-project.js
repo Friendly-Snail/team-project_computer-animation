@@ -154,13 +154,34 @@ function render() {
 		const pNext = track[(idx + 1) % track.length];
 		const tangent = [pNext[0] - p[0], pNext[1] - p[1]];
 
-		const angle = Math.atan2(tangent[1], tangent[0]); // radians
 		const cartYOffset = 7.5 * cartScale;
+
+
+		const cpCount = controlPointQuaternions.length;
+		const uQ      = carPosition * (cpCount - 1);
+		const iQ      = Math.floor(uQ);
+		const jQ      = (iQ + 1) % cpCount;
+		const tQ      = uQ - iQ;
+
+		//SLERP
+		const qInterp  = slerp(
+			controlPointQuaternions[iQ],
+			controlPointQuaternions[jQ],
+			tQ
+		);
+		const orientMat = quatToMatrix(qInterp);
+
+		// build 3D model matrix and draw:
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
-			rotate((angle * 180 / Math.PI) + 90, 0, 0, 1),
-			translate(0, cartYOffset, 0)
+			orientMat,
+			translate(0, cartYOffset, 0),
+			scalem(cartScale, cartScale, cartScale)
 		);
+		setUniformMatrix("modelMatrix", modelMat);
+
+
+
 
 		// Calculate distance traveled for wheel animation
 		const prevIdx = (idx - 1 + track.length) % track.length;
