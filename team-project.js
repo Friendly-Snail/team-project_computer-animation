@@ -154,7 +154,6 @@ function render() {
 
 		const cartYOffset = 7.5 * cartScale;
 
-
 		const cpCount = controlPointQuaternions.length;
 		const uQ      = carPosition * (cpCount - 1);
 		const iQ      = Math.floor(uQ);
@@ -169,67 +168,56 @@ function render() {
 		);
 		const orientMat = quatToMatrix(qInterp);
 
-		//this is the
-		//one step back/forward on the 2D track
-		const prevIdx2  = (idx - 1 + track.length) % track.length;
-		const nextIdx2  = (idx + 1)     % track.length;
-		const pPrev     = track[prevIdx2];
-		const pNext2    = track[nextIdx2];
+		// Calculate angle between track segments
+		const prevIdx = (idx - 1 + track.length) % track.length;
+		const nextIdx = (idx + 1) % track.length;
+		const pPrev = track[prevIdx];
+		const pNext = track[nextIdx];
 
-		//build the two direction vectors
-		const v1  = [ p[0] - pPrev[0],  p[1] - pPrev[1] ];
-		const v2  = [ pNext2[0] - p[0], pNext2[1] - p[1] ];
-		const len1= Math.hypot(v1[0], v1[1]),
-			len2= Math.hypot(v2[0], v2[1]);
+		// Calculate vectors between points
+		const v1 = [p[0] - pPrev[0], p[1] - pPrev[1]];
+		const v2 = [pNext[0] - p[0], pNext[1] - p[1]];
 
-		// angle between them to get turnAngle
-		let dotA = (v1[0]*v2[0] + v1[1]*v2[1]) / (len1 * len2);
-		dotA = Math.max(-1, Math.min(1, dotA));   // clamp into [‑1,1]
-		const turnAngle = Math.acos(dotA);
-
-
-
-		//curvature
-		const curvature = turnAngle / ((len1 + len2) * 0.5);
-
-		//map curvature & speed into stretch/squash
-		const kStretch = 5000,
-			  kSquash  = 2000;
-		const stretch = 1 + curvature  * kStretch;
-		const squash  = 1 - curvature * kSquash;
-
-		console.log(
-			`turnAngle=${turnAngle.toFixed(2)}  curvature=${curvature.toFixed(2)}  → stretch=${stretch.toFixed(2)}, squash=${squash.toFixed(2)}`
-		);
-
-
-
-		const deformScale = scalem(
-			cartScale * squash,
-			cartScale * stretch,
+		// Calculate angle between vectors
+		const dot = v1[0] * v2[0] + v1[1] * v2[1];
+		const mag1 = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
+		const mag2 = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
+		const cosAngle = dot / (mag1 * mag2);
+		const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+		
+		// Make stretching extremely dramatic based only on angle
+		const stretchFactor = 1.0 + (angle * 5000);
+		const squashFactor = 1.0 / (stretchFactor * 10);
+		
+		// Debug logging
+		console.log('Angle:', angle.toFixed(2), 
+				   'Stretch:', stretchFactor.toFixed(2), 
+				   'Squash:', squashFactor.toFixed(4));
+		
+		// Create deformation matrix with more dramatic scaling
+		const deformMatrix = scalem(
+			cartScale * squashFactor,
+			cartScale * stretchFactor,
 			cartScale
 		);
 
-
+		// Build final model matrix with deformation
 		const modelMat = mult(
-			translate(p[0], p[1], 0),
-			orientMat,
-			translate(0, cartYOffset, 0),
-			deformScale
+			translate(p[0], p[1], 0),    // Position on track
+			orientMat,                    // Orientation
+			translate(0, cartYOffset, 0), // Offset from track
+			deformMatrix                  // Apply deformation
 		);
 
 		setUniformMatrix("modelMatrix", modelMat);
 
-
-
 		// Calculate distance traveled for wheel animation
-		const prevIdx = (idx - 1 + track.length) % track.length;
-		const prevP = track[prevIdx];
-		const segmentDist = Math.sqrt(Math.pow(p[0] - prevP[0], 2) + Math.pow(p[1] - prevP[1], 2));
+		const segmentDist = Math.sqrt(Math.pow(p[0] - pPrev[0], 2) + Math.pow(p[1] - pPrev[1], 2));
 		cartDistance += segmentDist * carSpeed;
 		const wheelCircumference = 2 * Math.PI * 3; // r=3
 		const wheelAngle = (cartDistance / wheelCircumference) * 360;
-		setUniformMatrix("modelMatrix", modelMat);
+		
+		// Draw the cart with deformation
 		drawCoasterCar(modelMat, wheelAngle);
 		
 		// Draw the rider skeleton on top of the cart
@@ -237,25 +225,20 @@ function render() {
 		
 		// Update car position
 		if (curve3D.length > 1 && trackLength > 0) {
-			// Find where we are on the 3D curve
-
 			const u3 = carPosition * (curve3D.length - 1);
 			const i3 = Math.floor(u3);
 			const j3 = (i3 + 1) % curve3D.length;
 			const t3 = u3 - i3;
 
-
 			// Interpolate the current height
-			const z0    = curve3D[i3].z;
-			const z1    = curve3D[j3].z;
+			const z0 = curve3D[i3].z;
+			const z1 = curve3D[j3].z;
 			const zCurr = z0 * (1 - t3) + z1 * t3;
-
 
 			// Use local slope for speed
 			const dz = z1 - z0;
 			const baseSpeed = 50; 
 			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20); 
-			console.log('Cart speed:', speed.toFixed(2), 'pixels/sec, dz:', dz.toFixed(2), 'zCurr:', zCurr.toFixed(2));
 			const frac = speed * dt / trackLength;
 			carPosition = (carPosition + frac) % 1;
 		}
