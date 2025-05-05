@@ -49,6 +49,9 @@ function main() {
 	//Set up the viewport
 	gl.viewport( 0, 0, canvas.width, canvas.height );
 
+	const overlayCanvas = document.getElementById('overlay');
+	gl.overlayCtx = overlayCanvas.getContext('2d');
+
 	let cameraMatrix = lookAt(vec3(0, 0, 2), vec3(0, 0, 0), vec3(0, 1, 0));
 	let projMatrix = perspective(120, 1, 0.1, 10);
 	setUniformMatrix("cameraMatrix", cameraMatrix);
@@ -81,8 +84,8 @@ function main() {
 			vertexCount = track.length;
 			trackLength = 0;
 			for (let i = 1; i < track.length; i++) {
-				const dx = track[i][0] - track[i-1][0];
-				const dy = track[i][1] - track[i-1][1];
+				const dx = track[i][0] - track[i - 1][0];
+				const dy = track[i][1] - track[i - 1][1];
 				trackLength += Math.hypot(dx, dy);
 			}
 			lastTime = performance.now();
@@ -99,18 +102,26 @@ function render() {
 	const now = performance.now();
 	const dt = lastTime ? (now - lastTime) / 1000 : 0;
 	lastTime = now;
+
+	// Clear the WebGL canvas
 	gl.clearColor(1.0, 1.0, 1.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 	setUniformMatrix("cameraMatrix", mat4());
 	setUniformMatrix("projMatrix", ortho(0, 1125, 0, 1125, -1, 1));
 
+	let speed = 0; // speed to display
+
 	if (vertexCount > 0) {
+		// draw the track
 		setUniformMatrix("modelMatrix", mat4());
 		setAttributes(track, new Array(track.length).fill(vec4(1, 0, 0, 1)), 2, 4);
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
+		// interpolate track position
 		const idx = Math.floor(carPosition * (track.length - 1));
 		const p = track[idx];
+
+		// interpolate quaternion orientation
 		const cpCount = controlPointQuaternions.length;
 		const uQ = carPosition * (cpCount - 1);
 		const iQ = Math.floor(uQ);
@@ -119,21 +130,30 @@ function render() {
 		const qInterp = slerp(controlPointQuaternions[iQ], controlPointQuaternions[jQ], tQ);
 		const orientMat = quatToMatrix(qInterp);
 
+		// get 3D Z height for physics
 		const u3 = carPosition * (curve3D.length - 1);
 		const i3 = Math.floor(u3);
 		const j3 = (i3 + 1) % curve3D.length;
+		const t = u3 - i3;
 		const z0 = curve3D[i3].z;
 		const z1 = curve3D[j3].z;
-		const dz = z1 - z0;
-		const baseSpeed = 50;
-		const speed = Math.max(baseSpeed - 3 * gravity * dz, 20);
+		const z = z0 + (z1 - z0) * t;
+
+		// Use energy conservation: KE + PE = constant
+		const potentialEnergy = mass * gravity * z;
+		const kineticEnergy = Math.max(energy - potentialEnergy, 0);
+		speed = Math.sqrt(2 * kineticEnergy / mass); // true cart speed
+
+		// Update position based on speed
 		const frac = speed * dt / trackLength;
 		carPosition = (carPosition + frac) % 1;
 
+		// Compute cart stretch/squish and color based on speed factor
 		const speedFactor = Math.min(Math.max((speed - 20) / 100, 0), 1);
 		const stretchX = 1 + speedFactor * 2.0; // exaggerated stretch
 		const stretchY = 1 - speedFactor * 0.9; // exaggerated squish
 		const cartYOffset = 7.5 * cartScale;
+
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
 			orientMat,
@@ -141,31 +161,48 @@ function render() {
 			scalem(cartScale * stretchX, cartScale * stretchY, cartScale)
 		);
 		setUniformMatrix("modelMatrix", modelMat);
+
 		const cartColor = getSpeedColor(speedFactor);
 		drawCoasterCar(modelMat, cartColor);
 		drawRiderSkeleton(modelMat, now / 1000);
 	}
+
+	// draw speedometer as 2D overlay
+	const ctx = gl.overlayCtx;
+	ctx.clearRect(0, 0, 650, 650);  // full canvas clear
+	ctx.font = '20px Arial';
+	ctx.fillStyle = 'black';
+	ctx.fillText(`Speed: ${speed.toFixed(2)} units/s`, 20, 30);
 
 	if (gl.getError() !== gl.NO_ERROR) console.error("WebGL error detected");
 	requestAnimationFrame(render);
 }
 
 function setAttributes(positions, colors, posLength = 2, colorLength = 4) {
+	// position buffer
 	let pBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, flatten(positions), gl.STATIC_DRAW);
 	let aLoc = gl.getAttribLocation(program, "vPosition");
 	if (aLoc !== -1) {
-		gl.vertexAttribPointer(aLoc, posLength, gl.FLOAT, false, 0, 0);
 		gl.enableVertexAttribArray(aLoc);
+		gl.vertexAttribPointer(aLoc, posLength, gl.FLOAT, false, 0, 0);
 	}
+
+	// color buffer
 	let cBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, cBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, flatten(colors), gl.STATIC_DRAW);
 	let cLoc = gl.getAttribLocation(program, "vColor");
 	if (cLoc !== -1) {
-		gl.vertexAttribPointer(cLoc, colorLength, gl.FLOAT, false, 0, 0);
 		gl.enableVertexAttribArray(cLoc);
+		gl.vertexAttribPointer(cLoc, colorLength, gl.FLOAT, false, 0, 0);
+	}
+
+	// re-bind position buffer here
+	if (aLoc !== -1) {
+		gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
+		gl.vertexAttribPointer(aLoc, posLength, gl.FLOAT, false, 0, 0);
 	}
 }
 
@@ -173,7 +210,6 @@ function setUniformMatrix(name, data) {
 	let loc = gl.getUniformLocation(program, name);
 	gl.uniformMatrix4fv(loc, false, flatten(data));
 }
-
 
 function slerp(q1, q2, t) {
 	let dot = q1[0]*q2[0] + q1[1]*q2[1] + q1[2]*q2[2] + q1[3]*q2[3];
@@ -215,8 +251,8 @@ function drawCoasterCar(cartModelMatrix, cartColor, wheelAngle = 0) {
 	// Draw wheels (bottom left and top left) [wheels stay gray]
 	const wheelOffsets = [
 
-		[-5 * cartScale, -7.5 * cartScale], 
-		[-5 * cartScale,  7.5 * cartScale]  
+		[-5 * cartScale, -7.5 * cartScale],
+		[-5 * cartScale,  7.5 * cartScale]
 
 	];
 	const wheelRadius = 3 * cartScale;
@@ -244,8 +280,8 @@ function drawCoasterCar(cartModelMatrix, cartColor, wheelAngle = 0) {
 function drawRiderSkeleton(modelMatrix, time) {
 	// Animate arms and head
 
-	const armSwing = Math.sin(time * 2) * 45; 
-	const headBob = Math.sin(time * 2) * 10; 
+	const armSwing = Math.sin(time * 2) * 45;
+	const headBob = Math.sin(time * 2) * 10;
 
 
 	// Compute world positions for each joint

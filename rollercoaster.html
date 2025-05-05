@@ -1,51 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8" />
     <title>Spline Riders: Rollercoaster</title>
 
-	<script id="vertex-shader" type="x-shader/x-vertex">
-	attribute vec2 vPosition;
-	attribute vec4 vColor;
-	varying vec4 fColor;
-	uniform mat4 cameraMatrix;
-	uniform mat4 projMatrix;
-	uniform mat4 modelMatrix;
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
 
-	void main() {
-		fColor = vColor;
-		gl_Position = projMatrix * cameraMatrix * modelMatrix * vec4(vPosition, 0.0, 1.0);
-		gl_PointSize = 10.0;
-  	}
-	</script>
-	
-	<script id="fragment-shader" type="x-shader/x-fragment">
-	precision mediump float;
-	varying vec4 fColor;
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
 
-	void main() {
-		gl_FragColor = fColor;
-  	}
-	</script>
-	
+        #webgl {
+            z-index: 0;
+        }
+
+        #overlay {
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        #ui-container label {
+            font-size: 14px;
+        }
+
+        #files {
+            margin-top: 5px;
+        }
+    </style>
+
+    <!-- shaders -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec2 vPosition;
+        attribute vec4 vColor;
+        varying vec4 fColor;
+        uniform mat4 cameraMatrix;
+        uniform mat4 projMatrix;
+        uniform mat4 modelMatrix;
+
+        void main() {
+          fColor = vColor;
+          gl_Position = projMatrix * cameraMatrix * modelMatrix * vec4(vPosition, 0.0, 1.0);
+          gl_PointSize = 10.0;
+        }
+    </script>
+
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec4 fColor;
+
+        void main() {
+          gl_FragColor = fColor;
+        }
+    </script>
+
+    <!-- libraries -->
     <script src="lib/webgl-utils.js"></script>
     <script src="lib/initShaders.js"></script>
     <script src="lib/MV.js"></script>
 
+    <!-- project scripts -->
     <script src="spline.js"></script>
     <script src="rollercoaster.js"></script>
+</head>
 
-  </head>
- 
-  <body>
-  
-    <canvas id="webgl" width="650" height="650">
-    Please use a browser that supports the "canvas" tag.
-    </canvas>
+<body>
 
-    <form id="fileupload" enctype="multipart/form-data">
-        <input type="file" id="files" name="files[]" />
-    </form>
+<!-- canvases -->
+<canvas id="webgl" width="650" height="650"></canvas>
+<canvas id="overlay" width="650" height="650"></canvas>
 
-  </body>
+<!-- ui container for upload and speedometer -->
+<div id="ui-container">
+    <label for="files"><strong>Choose a spline file:</strong></label><br />
+    <input type="file" id="files" name="files[]" />
+</div>
+
+</body>
 </html>
