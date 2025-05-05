@@ -7,15 +7,18 @@ let controlPointQuaternions = [];
 let cartDistance = 0;
 const cartScale = 2.5;
 
-// physics variables
-let mass = 1.0;
+
+
+
+//physics variables
+let mass= 1.0;
 let gravity = 100;
 
 let energy = 0.0;
 let trackLength = 0.0;
 
 let lastTime = null;
-let curve3D = [];
+let curve3D       = [];
 let initialHeight = 0;
 
 // Rider Skeleton Definition
@@ -29,7 +32,8 @@ const riderSkeleton = [
 	{ name: "rightLeg", parent: "root", length: 15, angle: -45 }
 ];
 
-function main() {
+function main()
+{
 	// Retrieve <canvas> element
 	let canvas = document.getElementById('webgl');
 	if (!canvas) {
@@ -49,16 +53,12 @@ function main() {
 	//Set up the viewport
 	gl.viewport( 0, 0, canvas.width, canvas.height );
 
-	const overlayCanvas = document.getElementById('overlay');
-	gl.overlayCtx = overlayCanvas.getContext('2d');
-
-	let cameraMatrix = lookAt(vec3(0, 0, 2), vec3(0, 0, 0), vec3(0, 1, 0));
+	let cameraMatrix = lookAt(vec3(0.0, 0.0, 2.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0));
 	let projMatrix = perspective(120, 1, 0.1, 10);
+
 	setUniformMatrix("cameraMatrix", cameraMatrix);
 	setUniformMatrix("projMatrix", projMatrix);
 
-	// initialize lastTime early
-	lastTime = performance.now();
 
 	const fileInput = document.getElementById("files");
 	const mySpline = new Spline();
@@ -70,162 +70,226 @@ function main() {
 			const catmullPoints = mySpline.generateCatmullRomCurve();
 			curve3D = catmullPoints;
 
+
+			// Auto-scale and center the track
+
 			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 			for (const p of catmullPoints) {
-				minX = Math.min(minX, p.x);
-				minY = Math.min(minY, p.y);
-				maxX = Math.max(maxX, p.x);
-				maxY = Math.max(maxY, p.y);
+				if (p.x < minX) minX = p.x;
+				if (p.y < minY) minY = p.y;
+				if (p.x > maxX) maxX = p.x;
+				if (p.y > maxY) maxY = p.y;
 			}
-
 			const width = maxX - minX;
 			const height = maxY - minY;
 			const canvasSize = 650;
 			const margin = 40;
-			const scale = Math.min((canvasSize - margin * 2) / width, (canvasSize - margin * 2) / height);
-			const offset = vec2((canvasSize - scale * width) / 2 - scale * minX, (canvasSize - scale * height) / 2 - scale * minY);
-			track = catmullPoints.map(p => add(vec2(p.x * scale, p.y * scale), offset));
+			const scale = Math.min(
+				(canvasSize - margin * 2) / width,
+				(canvasSize - margin * 2) / height
+			);
+			const offset = vec2(
+				(canvasSize - scale * width) / 2 - scale * minX,
+				(canvasSize - scale * height) / 2 - scale * minY
+			);
+			track = catmullPoints.map(p =>
+				add(vec2(p.x * scale, p.y * scale), offset)
+			);
 			vertexCount = track.length;
 
 			trackLength = 0;
+
 			for (let i = 1; i < track.length; i++) {
-				const dx = track[i][0] - track[i - 1][0];
-				const dy = track[i][1] - track[i - 1][1];
+				const dx = track[i][0] - track[i-1][0];
+				const dy = track[i][1] - track[i-1][1];
 				trackLength += Math.hypot(dx, dy);
+
 			}
 
-			// set initial height and energy safely
-			if (curve3D.length > 0) {
-				initialHeight = curve3D[0].z;
-				energy = mass * gravity * initialHeight;
-			}
+			lastTime = performance.now();
+			initialHeight = curve3D[0].z;
+			energy = mass * gravity * initialHeight;
 
-			controlPointQuaternions = mySpline.controlPoints.map(p => eulerToQuaternion(p.rotation.x, p.rotation.y, p.rotation.z));
+			controlPointQuaternions = mySpline.controlPoints.map(point =>
+				eulerToQuaternion(point.rotation.x, point.rotation.y, point.rotation.z)
+			);
 		};
 		reader.readAsText(event.target.files[0]);
 	});
+
+
 	render();
 }
 
 function render() {
 	const now = performance.now();
-	const dt = lastTime ? (now - lastTime) / 1000 : 0;
-	lastTime = now;
+	const dt  = lastTime ? (now - lastTime) / 1000 : 0;
+	lastTime  = now;
 
-	// Clear the WebGL canvas
+	// Clear the canvas
 	gl.clearColor(1.0, 1.0, 1.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
-	setUniformMatrix("cameraMatrix", mat4());
-	setUniformMatrix("projMatrix", ortho(0, 1125, 0, 1125, -1, 1));
 
-	let speed = 0; // speed to display
+	// Use orthographic projection that matches track coordinates
+	let projMatrix = ortho(0, 1125, 0, 1125, -1, 1);
+
+	// Use identity camera matrix
+	setUniformMatrix("cameraMatrix", mat4());
+	setUniformMatrix("projMatrix", projMatrix);
+
+	// Log attribute locations
+	let posLoc = gl.getAttribLocation(program, "vPosition");
+	let colLoc = gl.getAttribLocation(program, "vColor");
 
 	if (vertexCount > 0) {
-		// draw the track
+		// Draw the track in red
 		setUniformMatrix("modelMatrix", mat4());
-		setAttributes(track, new Array(track.length).fill(vec4(1, 0, 0, 1)), 2, 4);
+		const trackColors = new Array(track.length).fill(vec4(1, 0, 0, 1));
+		setAttributes(track, trackColors, 2, 4);
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
-		// interpolate track position
+		// Get the current and next point on the track
 		const idx = Math.floor(carPosition * (track.length - 1));
 		const p = track[idx];
 
-		// interpolate quaternion orientation
-		const cpCount = controlPointQuaternions.length;
-		const uQ = carPosition * (cpCount - 1);
-		const iQ = Math.floor(uQ);
-		const jQ = (iQ + 1) % cpCount;
-		const tQ = uQ - iQ;
-		const qInterp = slerp(controlPointQuaternions[iQ], controlPointQuaternions[jQ], tQ);
-		const orientMat = quatToMatrix(qInterp);
-
-		// get 3D Z height for physics
-		const u3 = carPosition * (curve3D.length - 1);
-		const i3 = Math.floor(u3);
-		const j3 = (i3 + 1) % curve3D.length;
-		const t = u3 - i3;
-		const z0 = curve3D[i3].z;
-		const z1 = curve3D[j3].z;
-		const z = z0 + (z1 - z0) * t;
-
-		// Use energy conservation: KE + PE = constant
-		const potentialEnergy = mass * gravity * z;
-		const kineticEnergy = Math.max(energy - potentialEnergy, 0);
-		speed = Math.sqrt(2 * kineticEnergy / mass); // true cart speed
-
-		// Update position based on speed
-		const frac = speed * dt / trackLength;
-		carPosition = (carPosition + frac) % 1;
-
-		// Compute cart stretch/squish and color based on speed factor
-		const speedFactor = Math.min(Math.max((speed - 20) / 100, 0), 1);
-		const stretchX = 1 + speedFactor * 2.0; // exaggerated stretch
-		const stretchY = 1 - speedFactor * 0.9; // exaggerated squish
 		const cartYOffset = 7.5 * cartScale;
 
-		const modelMat = mult(
-			translate(p[0], p[1], 0),
-			orientMat,
-			translate(0, cartYOffset, 0),
-			scalem(cartScale * stretchX, cartScale * stretchY, cartScale)
+		const cpCount = controlPointQuaternions.length;
+		const uQ      = carPosition * (cpCount - 1);
+		const iQ      = Math.floor(uQ);
+		const jQ      = (iQ + 1) % cpCount;
+		const tQ      = uQ - iQ;
+
+		//SLERP
+		const qInterp  = slerp(
+			controlPointQuaternions[iQ],
+			controlPointQuaternions[jQ],
+			tQ
 		);
+		const orientMat = quatToMatrix(qInterp);
+
+		// Calculate angle between track segments
+		const prevIdx = (idx - 1 + track.length) % track.length;
+		const nextIdx = (idx + 1) % track.length;
+		const pPrev = track[prevIdx];
+		const pNext = track[nextIdx];
+
+		// Calculate vectors between points
+		const v1 = [p[0] - pPrev[0], p[1] - pPrev[1]];
+		const v2 = [pNext[0] - p[0], pNext[1] - p[1]];
+
+		// Calculate angle between vectors
+		const dot = v1[0] * v2[0] + v1[1] * v2[1];
+		const mag1 = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
+		const mag2 = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
+		const cosAngle = dot / (mag1 * mag2);
+		const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+
+		// Make stretching extremely dramatic based only on angle
+		const stretchFactor = 1.0 + (angle * 5000);
+		const squashFactor = 1.0 / (stretchFactor * 10);
+
+		// Debug logging
+		console.log('Angle:', angle.toFixed(2),
+			'Stretch:', stretchFactor.toFixed(2),
+			'Squash:', squashFactor.toFixed(4));
+
+		// Create deformation matrix with more dramatic scaling
+		const deformMatrix = scalem(
+			cartScale * squashFactor,
+			cartScale * stretchFactor,
+			cartScale
+		);
+
+		// Build final model matrix with deformation
+		const modelMat = mult(
+			translate(p[0], p[1], 0),    // Position on track
+			orientMat,                    // Orientation
+			translate(0, cartYOffset, 0), // Offset from track
+			deformMatrix                  // Apply deformation
+		);
+
 		setUniformMatrix("modelMatrix", modelMat);
 
-		const cartColor = getSpeedColor(speedFactor);
-		drawCoasterCar(modelMat, cartColor);
-		drawRiderSkeleton(modelMat, now / 1000);
+		// Calculate distance traveled for wheel animation
+		const segmentDist = Math.sqrt(Math.pow(p[0] - pPrev[0], 2) + Math.pow(p[1] - pPrev[1], 2));
+		cartDistance += segmentDist * carSpeed;
+		const wheelCircumference = 2 * Math.PI * 3; // r=3
+		const wheelAngle = (cartDistance / wheelCircumference) * 360;
+
+		// Draw the cart with deformation
+		drawCoasterCar(modelMat, wheelAngle);
+
+		// Draw the rider skeleton on top of the cart
+		drawRiderSkeleton(modelMat, performance.now() / 1000);
+
+		// Update car position
+		if (curve3D.length > 1 && trackLength > 0) {
+			const u3 = carPosition * (curve3D.length - 1);
+			const i3 = Math.floor(u3);
+			const j3 = (i3 + 1) % curve3D.length;
+			const t3 = u3 - i3;
+
+			// Interpolate the current height
+			const z0 = curve3D[i3].z;
+			const z1 = curve3D[j3].z;
+			const zCurr = z0 * (1 - t3) + z1 * t3;
+
+			// Use local slope for speed
+			const dz = z1 - z0;
+			const baseSpeed = 50;
+			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20);
+			const frac = speed * dt / trackLength;
+			carPosition = (carPosition + frac) % 1;
+		}
 	}
 
-	// draw speedometer as 2D overlay
-	const ctx = gl.overlayCtx;
-	ctx.clearRect(0, 0, 650, 650);  // full canvas clear
-	ctx.font = '20px Arial';
-	ctx.fillStyle = 'black';
-	ctx.fillText(`Speed: ${speed.toFixed(2)} units/s`, 20, 30);
+	let error = gl.getError();
+	if (error !== gl.NO_ERROR) {
+		console.error('WebGL error:', error);
+	}
 
-	if (gl.getError() !== gl.NO_ERROR) console.error("WebGL error detected");
 	requestAnimationFrame(render);
 }
 
 function setAttributes(positions, colors, posLength = 2, colorLength = 4) {
-	// position buffer
 	let pBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, flatten(positions), gl.STATIC_DRAW);
 	let aLoc = gl.getAttribLocation(program, "vPosition");
 	if (aLoc !== -1) {
-		gl.enableVertexAttribArray(aLoc);
 		gl.vertexAttribPointer(aLoc, posLength, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(aLoc);
 	}
-
-	// color buffer
 	let cBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, cBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, flatten(colors), gl.STATIC_DRAW);
 	let cLoc = gl.getAttribLocation(program, "vColor");
 	if (cLoc !== -1) {
-		gl.enableVertexAttribArray(cLoc);
 		gl.vertexAttribPointer(cLoc, colorLength, gl.FLOAT, false, 0, 0);
-	}
-
-	// re-bind position buffer here
-	if (aLoc !== -1) {
-		gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
-		gl.vertexAttribPointer(aLoc, posLength, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(cLoc);
 	}
 }
 
 function setUniformMatrix(name, data) {
-	let loc = gl.getUniformLocation(program, name);
-	gl.uniformMatrix4fv(loc, false, flatten(data));
+	let matrixLoc = gl.getUniformLocation(program, name);
+	gl.uniformMatrix4fv(matrixLoc, false, flatten(data));
 }
 
+
 function slerp(q1, q2, t) {
-	let dot = q1[0]*q2[0] + q1[1]*q2[1] + q1[2]*q2[2] + q1[3]*q2[3];
-	let theta = Math.acos(dot);
+
+	let dotProd = q1[0]*q2[0] + q1[1]*q2[1] + q1[2]*q2[2] + q1[3]*q2[3];
+
+
+	// Calculate angle
+	let theta = Math.acos(dotProd);
 	let sinTheta = Math.sin(theta);
+
 	let scale1 = Math.sin((1 - t) * theta) / sinTheta;
 	let scale2 = Math.sin(t * theta) / sinTheta;
+
+
 	return vec4(
 		scale1 * q1[0] + scale2 * q2[0],
 		scale1 * q1[1] + scale2 * q2[1],
@@ -234,30 +298,36 @@ function slerp(q1, q2, t) {
 	);
 }
 
-function getSpeedColor(speedFactor) {
-	// Linearly interpolate between blue (slow) and red (fast)
-	const r = 0.2 + speedFactor * 0.8;   // from 0.2 -> 1.0
-	const g = 0.2 * (1 - speedFactor);   // from 0.2 -> 0.0
-	const b = 1.0 - speedFactor * 0.8;   // from 1.0 -> 0.2
-	return vec4(r, g, b, 1);
+function quatToMatrix(q) {
+	const [x, y, z, w] = q;
+	return new mat4(
+		1 - 2 * (y * y + z * z), 2 * (x * y - w * z),     2 * (x * z + w * y),     0,
+		2 * (x * y + w * z),     1 - 2 * (x * x + z * z), 2 * (y * z - w * x),     0,
+		2 * (x * z - w * y),     2 * (y * z + w * x),     1 - 2 * (x * x + y * y), 0,
+		0,                       0,                       0,                       1
+	);
 }
 
 // Draw a visible black rectangle for the cart
-function drawCoasterCar(cartModelMatrix, cartColor, wheelAngle = 0) {
+function drawCoasterCar(cartModelMatrix, wheelAngle = 0) {
 	// Draw the cart body (rectangle)
 	setUniformMatrix("modelMatrix", cartModelMatrix);
-
 	const carVertices = [
 		vec2(-5 * cartScale, -5 * cartScale),
 		vec2( 5 * cartScale, -5 * cartScale),
 		vec2( 5 * cartScale,  5 * cartScale),
 		vec2(-5 * cartScale,  5 * cartScale)
 	];
-	const carColors = new Array(carVertices.length).fill(cartColor);
+	const carColors = [
+		vec4(0, 0, 0, 1),
+		vec4(0, 0, 0, 1),
+		vec4(0, 0, 0, 1),
+		vec4(0, 0, 0, 1)
+	];
 	setAttributes(carVertices, carColors, 2, 4);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, carVertices.length);
 
-	// Draw wheels (bottom left and top left) [wheels stay gray]
+	// Draw wheels (bottom left and top left)
 	const wheelOffsets = [
 
 		[-5 * cartScale, -7.5 * cartScale],
@@ -283,6 +353,25 @@ function drawCoasterCar(cartModelMatrix, cartColor, wheelAngle = 0) {
 		setAttributes(circleVerts, circleColors, 2, 4);
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, circleVerts.length);
 	}
+}
+
+// Quaternion helper: Euler angles to quaternion
+function eulerToQuaternion(x, y, z) {
+	x = x * Math.PI / 180;
+	y = y * Math.PI / 180;
+	z = z * Math.PI / 180;
+	const c1 = Math.cos(x/2);
+	const c2 = Math.cos(y/2);
+	const c3 = Math.cos(z/2);
+	const s1 = Math.sin(x/2);
+	const s2 = Math.sin(y/2);
+	const s3 = Math.sin(z/2);
+	return vec4(
+		s1 * c2 * c3 + c1 * s2 * s3,
+		c1 * s2 * c3 - s1 * c2 * s3,
+		c1 * c2 * s3 + s1 * s2 * c3,
+		c1 * c2 * c3 - s1 * s2 * s3
+	);
 }
 
 // Draw the rider skeleton on top of the cart
@@ -360,21 +449,6 @@ function drawRiderSkeleton(modelMatrix, time) {
 	setUniformMatrix("modelMatrix", modelMatrix);
 	setAttributes(circleVerts, circleColors, 2, 4);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, circleVerts.length);
-}
-
-// Quaternion helper: Euler angles to quaternion
-function eulerToQuaternion(x, y, z) {
-	x *= Math.PI / 180;
-	y *= Math.PI / 180;
-	z *= Math.PI / 180;
-	let c1 = Math.cos(x / 2), c2 = Math.cos(y / 2), c3 = Math.cos(z / 2);
-	let s1 = Math.sin(x / 2), s2 = Math.sin(y / 2), s3 = Math.sin(z / 2);
-	return vec4(
-		s1*c2*c3 + c1*s2*s3,
-		c1*s2*c3 - s1*c2*s3,
-		c1*c2*s3 + s1*s2*c3,
-		c1*c2*c3 - s1*s2*s3
-	);
 }
 
 window.addEventListener('load', main);
