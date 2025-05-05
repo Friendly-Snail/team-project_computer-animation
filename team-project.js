@@ -13,6 +13,7 @@ const cartScale = 2.5;
 //physics variables
 let mass= 1.0;
 let gravity = 100;
+
 let energy = 0.0;
 let trackLength = 0.0;
 
@@ -69,7 +70,9 @@ function main()
 			const catmullPoints = mySpline.generateCatmullRomCurve();
 			curve3D = catmullPoints;
 
+
 			// Auto-scale and center the track
+
 			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 			for (const p of catmullPoints) {
 				if (p.x < minX) minX = p.x;
@@ -95,10 +98,12 @@ function main()
 			vertexCount = track.length;
 
 			trackLength = 0;
+
 			for (let i = 1; i < track.length; i++) {
 				const dx = track[i][0] - track[i-1][0];
 				const dy = track[i][1] - track[i-1][1];
 				trackLength += Math.hypot(dx, dy);
+
 			}
 
 			lastTime = performance.now();
@@ -173,15 +178,18 @@ function render() {
 		// Update car position
 		if (curve3D.length > 1 && trackLength > 0) {
 			// Find where we are on the 3D curve
+
 			const u3 = carPosition * (curve3D.length - 1);
 			const i3 = Math.floor(u3);
 			const j3 = (i3 + 1) % curve3D.length;
 			const t3 = u3 - i3;
 
+
 			// Interpolate the current height
 			const z0    = curve3D[i3].z;
 			const z1    = curve3D[j3].z;
 			const zCurr = z0 * (1 - t3) + z1 * t3;
+
 
 			// Use local slope for speed
 			const dz = z1 - z0;
@@ -278,8 +286,10 @@ function drawCoasterCar(cartModelMatrix, wheelAngle = 0) {
 
 	// Draw wheels (bottom left and top left)
 	const wheelOffsets = [
+
 		[-5 * cartScale, -7.5 * cartScale], 
 		[-5 * cartScale,  7.5 * cartScale]  
+
 	];
 	const wheelRadius = 3 * cartScale;
 	for (const [dx, dy] of wheelOffsets) {
@@ -324,8 +334,10 @@ function eulerToQuaternion(x, y, z) {
 // Draw the rider skeleton on top of the cart
 function drawRiderSkeleton(modelMatrix, time) {
 	// Animate arms and head
+
 	const armSwing = Math.sin(time * 2) * 45; 
 	const headBob = Math.sin(time * 2) * 10; 
+
 
 	// Compute world positions for each joint
 	const positions = { root: [0, 10] };
