@@ -32,8 +32,7 @@ const riderSkeleton = [
 	{ name: "rightLeg", parent: "root", length: 15, angle: -45 }
 ];
 
-function main()
-{
+function main() {
 	// Retrieve <canvas> element
 	let canvas = document.getElementById('webgl');
 	if (!canvas) {
@@ -44,7 +43,7 @@ function main()
 	gl = WebGLUtils.setupWebGL(canvas, null);
 
 	// Initialize shaders
-	program = initShaders(gl, "vshader", "fshader");
+	program = initShaders(gl, "vertex-shader", "fragment-shader");
 	if (!program) {
 		return;
 	}

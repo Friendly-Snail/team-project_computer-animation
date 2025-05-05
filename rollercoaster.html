@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>WebGL Example File</title>
+    <title>Spline Riders: Rollercoaster</title>
  
-	<script id="vshader" type="x-shader/x-vertex">
+	<script id="vertex-shader" type="x-shader/x-vertex">
 	attribute vec2 vPosition;
 	attribute vec4 vColor;
 	varying vec4 fColor;
@@ -19,12 +19,11 @@
   	}
 	</script>
 	
-	<script id="fshader" type="x-shader/x-fragment">
+	<script id="fragment-shader" type="x-shader/x-fragment">
 	precision mediump float;
 	varying vec4 fColor;
 
-	void main() 
-	{
+	void main() {
 		gl_FragColor = fColor;
   	}
 	</script>
@@ -34,7 +33,7 @@
     <script src="lib/MV.js"></script>
 
     <script src="spline.js"></script>
-    <script src="team-project.js"></script>
+    <script src="rollercoaster.js"></script>
 
   </head>
  
