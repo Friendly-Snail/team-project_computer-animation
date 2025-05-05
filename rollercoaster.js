@@ -110,64 +110,72 @@ function main() {
 
 function render() {
 	const now = performance.now();
-	const dt  = lastTime ? (now - lastTime)/1000 : 0;
+	const dt = lastTime ? (now - lastTime) / 1000 : 0;
 	lastTime = now;
 
 	// clear
-	gl.clearColor(1,1,1,1);
+	gl.clearColor(1, 1, 1, 1);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// update projection to full canvas
+	// update to full‐canvas ortho projection
 	const cw = gl.canvas.width, ch = gl.canvas.height;
 	const orthoM = ortho(0, cw, 0, ch, -1, 1);
 	setUniformMatrix("cameraMatrix", mat4());
 	setUniformMatrix("projMatrix", orthoM);
 
 	if (vertexCount > 0) {
-		// draw track
+		// draw the track
 		setUniformMatrix("modelMatrix", mat4());
-		setAttributes(track, new Array(track.length).fill(vec4(1,0,0,1)), 2, 4);
+		setAttributes(track, new Array(track.length).fill(vec4(1, 0, 0, 1)), 2, 4);
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
-		// find current segment
-		const idx = Math.floor(carPosition * (track.length-1));
-		const p   = track[idx];
+		// find current segment on 2D track
+		const idx = Math.floor(carPosition * (track.length - 1));
+		const p = track[idx];
 		const prevIdx = (idx - 1 + track.length) % track.length;
-		const pPrev   = track[prevIdx];
+		const pPrev = track[prevIdx];
 
-		// compute world-space speed along the 3D curve
+		// compute world‐space speed along the 3D spline
 		const u3 = carPosition * (curve3D.length - 1);
-		const i3 = Math.floor(u3), j3 = (i3+1) % curve3D.length;
-		const t3 = u3 - i3;
+		const i3 = Math.floor(u3), j3 = (i3 + 1) % curve3D.length;
 		const z0 = curve3D[i3].z, z1 = curve3D[j3].z;
 		const dz = z1 - z0;
 		const baseSpeed = 50;
-		// ensure speed ≥ 20, then apply user slider multiplier
-		const speed = Math.max(baseSpeed - 3*gravity*dz, 20) * speedMultiplier;
+		const speed = Math.max(baseSpeed - 3 * gravity * dz, 20) * speedMultiplier;
 
 		// advance along track
-		carPosition = (carPosition + speed*dt/trackLength) % 1;
+		carPosition = (carPosition + speed * dt / trackLength) % 1;
 
 		// SLERP for bank/orientation
 		const cpCount = controlPointQuaternions.length;
-		const uQ = carPosition*(cpCount-1);
-		const iQ = Math.floor(uQ), jQ = (iQ+1)%cpCount, tQ = uQ - iQ;
-		const qInterp  = slerp(controlPointQuaternions[iQ], controlPointQuaternions[jQ], tQ);
+		const uQ = carPosition * (cpCount - 1);
+		const iQ = Math.floor(uQ), jQ = (iQ + 1) % cpCount, tQ = uQ - iQ;
+		const qInterp = slerp(controlPointQuaternions[iQ], controlPointQuaternions[jQ], tQ);
 		const orientMat = quatToMatrix(qInterp);
 
-		// wheels spin (still uses a fixed cartSpeed for visual spin)
+		// wheels spin
 		const segmentDist = Math.hypot(p[0] - pPrev[0], p[1] - pPrev[1]);
-		cartDistance += segmentDist * speedMultiplier;  // spin speed tracks slider too
+		cartDistance += segmentDist * speedMultiplier;
 		const wheelAngle = (cartDistance / (2 * Math.PI * 3)) * 360;
 
-		// shape deformation now tied to speed
-		const speedFactor   = speed / baseSpeed; // 1.0 at nominal, >1 when faster
-		// make the cart stretch and squash more dramatically:
-		const stretchFactor = 1 + (speedFactor - 1) * deformationIntensity;
-		// squash inversely proportional to stretch
-		const squashFactor  = 1 / stretchFactor;
+		// shape deformation based on track curvature
+		const nextIdx = (idx + 1) % track.length;
+		const pNext = track[nextIdx];
 
-		// build model matrix with more pronounced squish/stretch
+		// compute unit direction vectors
+		let v1 = subtract(p, pPrev); normalize(v1);
+		let v2 = subtract(pNext, p); normalize(v2);
+
+		// angle between segments -> [0, pi], normalize to [0,1]
+		const cosTheta = v1[0] * v2[0] + v1[1] * v2[1];
+		const theta = Math.acos(Math.min(Math.max(cosTheta, -1), 1));
+		const curvature = theta / Math.PI;
+
+		// drive stretch/squash
+		const stretchFactor = 1 + curvature * deformationIntensity;
+		const squashFactor = 1 / stretchFactor;
+
+		// build the cart’s model matrix with squash & stretch
 		const cartYOffset = 7.5 * cartScale;
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
@@ -183,10 +191,10 @@ function render() {
 
 		setUniformMatrix("modelMatrix", modelMat);
 		drawCoasterCar(modelMat, wheelAngle);
-		drawRiderSkeleton(modelMat, now/1000);
+		drawRiderSkeleton(modelMat, now / 1000);
 	}
 
-	// next frame
+	// schedule next frame
 	requestAnimationFrame(render);
 }
 
