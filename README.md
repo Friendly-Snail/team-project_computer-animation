@@ -17,7 +17,11 @@
 ---
 
 ## Overview
-*TODO*
+For this project, we have created a small roller coaster with a rider on the cart as well.
+To complete each requirement of the project, we have implemented choosing a spline to 
+design the path of the track, implement slerping using Catmull-Rom, having the cart stretch
+around corners, have a rider wave their arms, have multiple hierarchical models and using 
+gravity to speed up the cart.
 
 ### Splines
 *TODO*
