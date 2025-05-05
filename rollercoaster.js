@@ -1,3 +1,10 @@
+const clouds = [
+	{ x: 100, y: 700, w: 120, h: 40 },
+	{ x: 400, y: 750, w: 150, h: 50 },
+	{ x: 700, y: 720, w: 100, h: 35 }
+];
+const cloudSpeed = 30; // pixels per second
+
 let gl, program;
 let vertexCount;
 let track = [];
@@ -124,6 +131,28 @@ function render() {
 	setUniformMatrix("cameraMatrix", mat4());
 	setUniformMatrix("projMatrix", orthoM);
 
+	// draw moving clouds
+	for (let c of clouds) {
+		c.x += cloudSpeed * dt;
+		if (c.x - c.w/2 > cw) c.x = -c.w/2; // wrap around
+
+		// build a quad for each cloud
+		const verts = [
+			vec2(c.x - c.w/2, c.y - c.h/2),
+			vec2(c.x + c.w/2, c.y - c.h/2),
+			vec2(c.x + c.w/2, c.y + c.h/2),
+			vec2(c.x - c.w/2, c.y + c.h/2)
+		];
+		const cols = [ vec4(1,1,1,0.8),
+			vec4(1,1,1,0.8),
+			vec4(1,1,1,0.8),
+			vec4(1,1,1,0.8) ];
+
+		setUniformMatrix("modelMatrix", mat4());
+		setAttributes(verts, cols, 2, 4);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+	}
+
 	if (vertexCount > 0) {
 		// draw the track
 		setUniformMatrix("modelMatrix", mat4());
@@ -131,7 +160,7 @@ function render() {
 		// gradient from blue -> red along the spline:
 		const trackColors = track.map((_, i) => {
 			const t = i / (track.length - 1);
-			return vec4(t, 0, 1 - t, 1);   // vec4(r, g, b, a)
+			return vec4(t, 0, 1 - t, 1); // vec4(r, g, b, a)
 		});
 		setAttributes(track, trackColors, 2, 4);
 
