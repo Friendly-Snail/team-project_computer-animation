@@ -212,16 +212,21 @@ function render() {
 		const stretchFactor = 1 + curvature * deformationIntensity;
 		const squashFactor = 1 / stretchFactor;
 
-		// build the cart’s model matrix with squash & stretch
+		// add a little extra stretch when cart is going faster
 		const cartYOffset = 7.5 * cartScale;
+		const speedFactor = 1 + (speed - baseSpeed) / baseSpeed;  // >1 when faster than nominal
+		const finalStretch = stretchFactor * speedFactor;
+		const finalSquash  = squashFactor / speedFactor;
+
+		// then build model matrix with finalStretch / finalSquash instead
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
 			orientMat,
 			translate(0, cartYOffset, 0),
 			// squash in X, stretch in Y
 			scalem(
-				cartScale * squashFactor,
-				cartScale * stretchFactor,
+				cartScale * finalSquash,
+				cartScale * finalStretch,
 				cartScale
 			)
 		);
