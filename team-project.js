@@ -169,15 +169,54 @@ function render() {
 		);
 		const orientMat = quatToMatrix(qInterp);
 
-		// build 3D model matrix and draw:
+		//this is the
+		//one step back/forward on the 2D track
+		const prevIdx2  = (idx - 1 + track.length) % track.length;
+		const nextIdx2  = (idx + 1)     % track.length;
+		const pPrev     = track[prevIdx2];
+		const pNext2    = track[nextIdx2];
+
+		//build the two direction vectors
+		const v1  = [ p[0] - pPrev[0],  p[1] - pPrev[1] ];
+		const v2  = [ pNext2[0] - p[0], pNext2[1] - p[1] ];
+		const len1= Math.hypot(v1[0], v1[1]),
+			len2= Math.hypot(v2[0], v2[1]);
+
+		// angle between them to get turnAngle
+		let dotA = (v1[0]*v2[0] + v1[1]*v2[1]) / (len1 * len2);
+		dotA = Math.max(-1, Math.min(1, dotA));   // clamp into [‑1,1]
+		const turnAngle = Math.acos(dotA);
+
+		//curvature
+		const curvature = turnAngle / ((len1 + len2) * 0.5);
+
+		//map curvature & speed into stretch/squash
+		const kStretch = 5000,
+			  kSquash  = 2000;
+		const stretch = 1 + curvature  * kStretch;
+		const squash  = 1 - curvature * kSquash;
+
+		console.log(
+			`turnAngle=${turnAngle.toFixed(2)}  curvature=${curvature.toFixed(2)}  → stretch=${stretch.toFixed(2)}, squash=${squash.toFixed(2)}`
+		);
+
+
+
+		const deformScale = scalem(
+			cartScale * squash,
+			cartScale * stretch,
+			cartScale
+		);
+
+
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
 			orientMat,
 			translate(0, cartYOffset, 0),
-			scalem(cartScale, cartScale, cartScale)
+			deformScale
 		);
-		setUniformMatrix("modelMatrix", modelMat);
 
+		setUniformMatrix("modelMatrix", modelMat);
 
 
 
