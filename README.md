@@ -32,7 +32,7 @@ sampling it to get our track vertices and tangents*
 and build a 4×4 rotation matrix so the cart banks smoothly.*
 
 ### Shape Deformation
-*TODO*
+*We measure curvature and, apply a scale so the cart stretches on tight, fast turns.*
 
 ### Skeletal Animation
 The Skeletal Animation is completed by having a skeleton characted ride the cart and have 
