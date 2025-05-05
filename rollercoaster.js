@@ -7,9 +7,6 @@ let controlPointQuaternions = [];
 let cartDistance = 0;
 const cartScale = 2.5;
 
-
-
-
 //physics variables
 let mass= 1.0;
 let gravity = 100;
@@ -32,11 +29,10 @@ const riderSkeleton = [
 	{ name: "rightLeg", parent: "root", length: 15, angle: -45 }
 ];
 
-function main()
-{
+function main() {
 	// Retrieve <canvas> element
 	let canvas = document.getElementById('webgl');
-	if (!canvas) {
+	if (!canvas) { // if canvas not found, exit early
 		return;
 	}
 
@@ -45,34 +41,44 @@ function main()
 
 	// Initialize shaders
 	program = initShaders(gl, "vertex-shader", "fragment-shader");
-	if (!program) {
-		return;
-	}
+	if (!program) return;
 	gl.useProgram(program);
 
-	//Set up the viewport
+	// Set up the viewport
 	gl.viewport( 0, 0, canvas.width, canvas.height );
 
-	let cameraMatrix = lookAt(vec3(0.0, 0.0, 2.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0));
+	// set up the camera view matrix (eye, at, up)
+	let cameraMatrix = lookAt(
+		vec3(0.0, 0.0, 2.0),  // eye position (camera)
+		vec3(0.0, 0.0, 0.0),  // point looking at
+		vec3(0.0, 1.0, 0.0)   // up vector
+	);
+
+	// set up a perspective projection (FOV, aspect, near, far)
 	let projMatrix = perspective(120, 1, 0.1, 10);
 
+	// pass matrices to the shaders as uniforms
 	setUniformMatrix("cameraMatrix", cameraMatrix);
 	setUniformMatrix("projMatrix", projMatrix);
 
-
+	// set up file input handling for spline upload
 	const fileInput = document.getElementById("files");
 	const mySpline = new Spline();
+
+	// when a file is selected:
 	fileInput.addEventListener("change", function(event) {
 		const reader = new FileReader();
+
 		reader.onload = function(e) {
+			// read and parse the spline file content
 			const fileContents = e.target.result;
-			mySpline.parse(fileContents);
+			mySpline.parse(fileContents); // Populate controlPoints
+
+			// generate interpolated points along the spline using Catmull-Rom
 			const catmullPoints = mySpline.generateCatmullRomCurve();
-			curve3D = catmullPoints;
+			curve3D = catmullPoints; // 3D points for speed and elevation
 
-
-			// Auto-scale and center the track
-
+			// calculate bounding box of the curve for scaling and centering
 			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 			for (const p of catmullPoints) {
 				if (p.x < minX) minX = p.x;
@@ -80,6 +86,8 @@ function main()
 				if (p.x > maxX) maxX = p.x;
 				if (p.y > maxY) maxY = p.y;
 			}
+
+			// auto-scale and center the track inside canvas
 			const width = maxX - minX;
 			const height = maxY - minY;
 			const canvasSize = 650;
@@ -92,32 +100,37 @@ function main()
 				(canvasSize - scale * width) / 2 - scale * minX,
 				(canvasSize - scale * height) / 2 - scale * minY
 			);
+
+			// store 2D track points (scaled and centered) for rendering
 			track = catmullPoints.map(p =>
 				add(vec2(p.x * scale, p.y * scale), offset)
 			);
 			vertexCount = track.length;
 
+			// compute total length of the 2D track
 			trackLength = 0;
-
 			for (let i = 1; i < track.length; i++) {
 				const dx = track[i][0] - track[i-1][0];
 				const dy = track[i][1] - track[i-1][1];
 				trackLength += Math.hypot(dx, dy);
-
 			}
 
+			// initialize physics: set energy based on initial height (z-axis)
 			lastTime = performance.now();
 			initialHeight = curve3D[0].z;
 			energy = mass * gravity * initialHeight;
 
+			// convert euler angles to quaternions for SLERP-based rotation
 			controlPointQuaternions = mySpline.controlPoints.map(point =>
 				eulerToQuaternion(point.rotation.x, point.rotation.y, point.rotation.z)
 			);
 		};
+
+		// read the selected file as text
 		reader.readAsText(event.target.files[0]);
 	});
 
-
+	// start the rendering loop
 	render();
 }
 
@@ -224,31 +237,41 @@ function render() {
 		drawRiderSkeleton(modelMat, performance.now() / 1000);
 
 		// Update car position
-		if (curve3D.length > 1 && trackLength > 0) {
-			const u3 = carPosition * (curve3D.length - 1);
-			const i3 = Math.floor(u3);
-			const j3 = (i3 + 1) % curve3D.length;
-			const t3 = u3 - i3;
+		if (curve3D.length > 1 && trackLength > 0) { // check if the 3D curve and track have valid data to proceed
 
-			// Interpolate the current height
+			// compute the fractional index along the 3D curve
+			const u3 = carPosition * (curve3D.length - 1);
+			const i3 = Math.floor(u3); // current point index
+			const j3 = (i3 + 1) % curve3D.length; // next point index
+			const t3 = u3 - i3; // interpolation factor between i3 and j3
+
+			// interpolate between z values of current and next control points
 			const z0 = curve3D[i3].z;
 			const z1 = curve3D[j3].z;
-			const zCurr = z0 * (1 - t3) + z1 * t3;
+			const zCurr = z0 * (1 - t3) + z1 * t3; // linearly interpolate height
 
-			// Use local slope for speed
+			// compute local slope (difference in elevation between two adjacent points)
 			const dz = z1 - z0;
+
+			// define a base speed and modify it using local slope and gravity
 			const baseSpeed = 50;
-			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20);
+			const speed = Math.max(baseSpeed - 3 * gravity * dz, 20); // ensure min speed of 20
+
+			// determine how much to move the cart in this frame, proportional to speed
 			const frac = speed * dt / trackLength;
+
+			// update car position (wraps around using modulo 1 for looping animation)
 			carPosition = (carPosition + frac) % 1;
 		}
 	}
 
+	// check and report any WebGL errors
 	let error = gl.getError();
 	if (error !== gl.NO_ERROR) {
 		console.error('WebGL error:', error);
 	}
 
+	// schedule the next animation frame
 	requestAnimationFrame(render);
 }
 
@@ -295,16 +318,6 @@ function slerp(q1, q2, t) {
 		scale1 * q1[1] + scale2 * q2[1],
 		scale1 * q1[2] + scale2 * q2[2],
 		scale1 * q1[3] + scale2 * q2[3]
-	);
-}
-
-function quatToMatrix(q) {
-	const [x, y, z, w] = q;
-	return new mat4(
-		1 - 2 * (y * y + z * z), 2 * (x * y - w * z),     2 * (x * z + w * y),     0,
-		2 * (x * y + w * z),     1 - 2 * (x * x + z * z), 2 * (y * z - w * x),     0,
-		2 * (x * z - w * y),     2 * (y * z + w * x),     1 - 2 * (x * x + y * y), 0,
-		0,                       0,                       0,                       1
 	);
 }
 

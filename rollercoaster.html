@@ -4,6 +4,39 @@
     <meta charset="utf-8" />
     <title>Spline Riders: Rollercoaster</title>
 
+    <style>
+        /* make the body a flex container that centers its children */
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* change to center to also vertically center */
+            background: #f5f5f5;
+        }
+
+        /* center and size both canvases */
+        canvas {
+            display: block;
+            margin: 20px 0;
+            width: 800px;
+            height: 800px;
+            border: 1px solid #ccc;
+        }
+
+        /* keep UI controls at the top still centered */
+        #ui-container {
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+            margin-top: 10px;
+        }
+    </style>
+
+    <!-- shaders -->
     <script id="vertex-shader" type="x-shader/x-vertex">
         attribute vec2 vPosition;
         attribute vec4 vColor;
@@ -40,14 +73,19 @@
 
 <body>
 
-<!-- canvas -->
-<canvas id="webgl" width="650" height="650">
-    Please use a browser that supports the "canvas" tag.
+<!-- ui container for upload -->
+<div id="ui-container">
+    <label for="files"><strong>Choose a spline file:</strong></label><br />
+    <input type="file" id="files" name="files[]" />
+</div>
+
+<!-- WebGL drawing canvas -->
+<canvas id="webgl" width="800" height="800">
+    Please use a browser that supports the &quot;canvas&quot; tag.
 </canvas>
 
-<form id="fileupload" enctype="multipart/form-data">
-    <input type="file" id="files" name="files[]" />
-</form>
+<!-- overlay canvas for ui (same size) -->
+<canvas id="overlay" width="800" height="800"></canvas>
 
 </body>
 </html>
