@@ -29,18 +29,24 @@
 *TODO*
 
 ### Skeletal Animation
-*TODO*
+The Skeletal Animation is completed by having a skeleton characted ride the cart and have 
+their hands waving in the air, like someone on a roller coaster would.
 
 ### Hierarchical Modeling/Kinematics
-*TODO*
+Hierarchical Modeling is done by having a cart with wheels and a rider attached too it, where
+the cart is the body and the wheels are children of the cart. In addition, the skeleton also 
+uses hierarchical modeleing as the base is the root of the model and then the rest of the body, 
+such as the torso, arms and head, are based off of it.
 
 ### Physically-Based Modeling
-*TODO*
+Physics are accomplished in the project by having the cart go down with gravity. On its way down, 
+the cart speeds up and then slows down on its way up, like its being pulled up by a cable.
 
 ---
 
 ## How To Use
-*TODO*
+For this project, all you need to do is get the spline.txt file in the folder, run the team-project.html 
+file and then choose the spline.txt file in the choose file toggle and the animation will appear.
 
 ---
 
@@ -57,5 +63,7 @@
 *TODO*
 
 ### Preston Van Fleet
-*TODO*
+For this project, I worked on the hierarchical modeling creating the wheels on the cart and the skeleton. 
+With the skeleton I also implemented the skeletal animation. Other aspects I worked on was the physics of the 
+coaster having it speed up on the way down and slow down on the way up.
 
