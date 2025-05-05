@@ -114,7 +114,8 @@ function render() {
 	lastTime = now;
 
 	// clear
-	gl.clearColor(1, 1, 1, 1);
+	// sky-blue background
+	gl.clearColor(0.80, 0.93, 1.00, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// update to full‐canvas ortho projection
