@@ -126,7 +126,14 @@ function render() {
 	if (vertexCount > 0) {
 		// draw the track
 		setUniformMatrix("modelMatrix", mat4());
-		setAttributes(track, new Array(track.length).fill(vec4(1, 0, 0, 1)), 2, 4);
+
+		// gradient from blue -> red along the spline:
+		const trackColors = track.map((_, i) => {
+			const t = i / (track.length - 1);
+			return vec4(t, 0, 1 - t, 1);   // vec4(r, g, b, a)
+		});
+		setAttributes(track, trackColors, 2, 4);
+
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
 		// find current segment on 2D track
