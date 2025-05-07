@@ -4,19 +4,20 @@
 ## Table of Contents
 - [Overview](#overview)
 - [Features](#features)
-- [Demo](#demo)
-- [Dependencies](#dependencies)
-- [File Structure](#file-structure)
 - [How To Use](#how-to-use)
 - [Challenges](#challenges)
 - [Future Improvements](#future-improvements)
 - [Team Members](#team-members)
 
 ## Overview
-...
+For this project, we have created a small roller coaster with a rider on the cart as well.
+To complete each requirement of the project, we have implemented choosing a spline to
+design the path of the track, implement slerping using Catmull-Rom, having the cart stretch
+around corners, have a rider wave their arms, have multiple hierarchical models and using
+gravity to speed up the cart.
 
 ## Features
-- **Spline-driven track** via Catmull–Rom
+- **Spline-driven track** via Catmull-Rom
 - **Quaternion bank** with SLERP for smooth roll
 - **Dynamic shape-deformation** (curvature + speed)
 - **Skeletal rider** with waving arms
@@ -26,24 +27,24 @@
 - **Visual polish**: gradient track, sky background, moving clouds
 
 ### Splines
-*We parse a text file of 3D control points and generate a Catmull–Rom spline,
-sampling it to get our track vertices and tangents*
+We parse a text file of 3D control points and generate a Catmull-Rom spline,
+sampling it to get our track vertices and tangents.
 
 ### Quaternions & SLERPing
-*Each control point can include a quaternion. Each frame we slerp between the two nearest quats
-and build a 4×4 rotation matrix so the cart banks smoothly.*
+Each control point can include a quaternion. Each frame we slerp between the two nearest quats
+and build a 4×4 rotation matrix so the cart banks smoothly.
 
 ### Shape Deformation
-*We measure curvature and, apply a scale so the cart stretches on tight, fast turns.*
+We measure curvature and, apply a scale so the cart stretches on tight, fast turns.
 
 ### Skeletal Animation
-The Skeletal Animation is completed by having a skeleton characted ride the cart and have
+The Skeletal Animation is completed by having a skeleton character ride the cart and have
 their hands waving in the air, like someone on a roller coaster would.
 
 ### Hierarchical Modeling/Kinematics
 Hierarchical Modeling is done by having a cart with wheels and a rider attached too it, where
 the cart is the body and the wheels are children of the cart. In addition, the skeleton also
-uses hierarchical modeleing as the base is the root of the model and then the rest of the body,
+uses hierarchical modeling as the base is the root of the model and then the rest of the body,
 such as the torso, arms and head, are based off of it.
 
 ### Physically-Based Modeling
@@ -74,11 +75,11 @@ around corners. It does slightly change shape, but not as much as we would like 
 
 ## Team Members
 ### Rawindhya Hettiarachchi
-I provided the initial starter code and README outline, refactored and cleaned up the HTML + JS for 
-consistency, built the UI layout (canvas, file picker) [basically making things prettier ^_^], and added the 
-interactive speed slider to replace the original hard-coded base speed. I also switched the background to a 
-lighter sky-blue (to emulate the sky), implemented a per-vertex color gradient on the track, added moving 
-semi-transparent clouds, and extended the cart’s shape deformation to include responding to speed.
+I provided the initial starter code and README outline, refactored and cleaned up the HTML + JS for
+consistency, built the UI layout (canvas, file picker) [basically making things prettier ^_^], and added the
+interactive speed slider to replace the original hard-coded base speed. I also switched the background to a
+lighter sky-blue (to emulate the sky), implemented a per-vertex color gradient on the track, added moving
+semi-transparent clouds, and extended the cart's shape deformation to include responding to speed.
 
 ### Matthew Gatta
 I worked on wring slerp and quatToMatrix code. I worked on forces with Preston. I also added the Splines and
