@@ -70,7 +70,9 @@ function main() {
 		const reader = new FileReader();
 		reader.onload = e => {
 			mySpline.parse(e.target.result);
-			curve3D = mySpline.generateCatmullRomCurve();
+
+			// generate a much denser curve for *smoother* motion
+			curve3D = mySpline.generateCatmullRomCurve(undefined, 100);
 
 			// compute 2D bounding box & auto-scale/center
 			let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
@@ -143,7 +145,8 @@ function render() {
 			vec2(c.x + c.w/2, c.y + c.h/2),
 			vec2(c.x - c.w/2, c.y + c.h/2)
 		];
-		const cols = [ vec4(1,1,1,0.8),
+		const cols = [
+			vec4(1,1,1,0.8),
 			vec4(1,1,1,0.8),
 			vec4(1,1,1,0.8),
 			vec4(1,1,1,0.8) ];
@@ -154,7 +157,7 @@ function render() {
 	}
 
 	if (vertexCount > 0) {
-		// draw the track
+		// draw track
 		setUniformMatrix("modelMatrix", mat4());
 
 		// gradient from blue -> red along the spline:
@@ -163,62 +166,65 @@ function render() {
 			return vec4(t, 0, 1 - t, 1); // vec4(r, g, b, a)
 		});
 		setAttributes(track, trackColors, 2, 4);
-
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
-		// find current segment on 2D track
-		const idx = Math.floor(carPosition * (track.length - 1));
-		const p = track[idx];
-		const prevIdx = (idx - 1 + track.length) % track.length;
-		const pPrev = track[prevIdx];
+		// *smoothly* interpolate cart 2D position
+		const u = carPosition * (track.length - 1);
+		const i = Math.floor(u), j = (i+1)%track.length;
+		const t = u - i;
+		const p0 = track[i], p1 = track[j];
+		const p = [
+			p0[0] * (1 - t) + p1[0] * t,
+			p0[1] * (1 - t) + p1[1] * t
+		];
 
-		// compute world‐space speed along the 3D spline
+		// also interpolate a “previous” point for curvature
+		const uPrev = u - 1;
+		const k = (i - 1 + track.length) % track.length;
+		const tp = uPrev - Math.floor(uPrev);
+		const pp0 = track[k], pp1 = p0;
+		const pPrev= [
+			pp0[0] * (1 - tp) + pp1[0] * tp,
+			pp0[1] * (1 - tp) + pp1[1] * tp
+		];
+
+		// compute 3D speed from curve3D
 		const u3 = carPosition * (curve3D.length - 1);
 		const i3 = Math.floor(u3), j3 = (i3 + 1) % curve3D.length;
-		const z0 = curve3D[i3].z, z1 = curve3D[j3].z;
-		const dz = z1 - z0;
+		const dz = curve3D[j3].z - curve3D[i3].z;
 		const baseSpeed = 50;
 		const speed = Math.max(baseSpeed - 3 * gravity * dz, 20) * speedMultiplier;
 
 		// advance along track
 		carPosition = (carPosition + speed * dt / trackLength) % 1;
 
-		// SLERP for bank/orientation
+		// bank with SLERP/quaternion (unchanged)
 		const cpCount = controlPointQuaternions.length;
 		const uQ = carPosition * (cpCount - 1);
 		const iQ = Math.floor(uQ), jQ = (iQ + 1) % cpCount, tQ = uQ - iQ;
 		const qInterp = slerp(controlPointQuaternions[iQ], controlPointQuaternions[jQ], tQ);
 		const orientMat = quatToMatrix(qInterp);
 
-		// wheels spin
+		// wheels spin (from distance moved)
 		const segmentDist = Math.hypot(p[0] - pPrev[0], p[1] - pPrev[1]);
 		cartDistance += segmentDist * speedMultiplier;
 		const wheelAngle = (cartDistance / (2 * Math.PI * 3)) * 360;
 
 		// shape deformation based on track curvature
-		const nextIdx = (idx + 1) % track.length;
-		const pNext = track[nextIdx];
-
-		// compute unit direction vectors
+		const nextIdx = (i + 1) % track.length;
+		const pNext   = track[nextIdx];
 		let v1 = subtract(p, pPrev); normalize(v1);
 		let v2 = subtract(pNext, p); normalize(v2);
-
-		// angle between segments -> [0, pi], normalize to [0,1]
-		const cosTheta = v1[0] * v2[0] + v1[1] * v2[1];
-		const theta = Math.acos(Math.min(Math.max(cosTheta, -1), 1));
+		const theta = Math.acos(Math.min(Math.max(dot(v1,v2), -1), 1));
 		const curvature = theta / Math.PI;
+		const stretch = 1 + curvature*deformationIntensity;
+		const squash  = 1 / stretch;
+		const speedFactor = 1 + (speed-baseSpeed)/baseSpeed;
+		const finalStretch = stretch * speedFactor;
+		const finalSquash  = squash  / speedFactor;
 
-		// drive stretch/squash
-		const stretchFactor = 1 + curvature * deformationIntensity;
-		const squashFactor = 1 / stretchFactor;
-
-		// add a little extra stretch when cart is going faster
+		// build final model matrix
 		const cartYOffset = 7.5 * cartScale;
-		const speedFactor = 1 + (speed - baseSpeed) / baseSpeed;  // >1 when faster than nominal
-		const finalStretch = stretchFactor * speedFactor;
-		const finalSquash  = squashFactor / speedFactor;
-
-		// then build model matrix with finalStretch / finalSquash instead
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
 			orientMat,
@@ -230,8 +236,9 @@ function render() {
 				cartScale
 			)
 		);
-
 		setUniformMatrix("modelMatrix", modelMat);
+
+		// draw car & rider
 		drawCoasterCar(modelMat, wheelAngle);
 		drawRiderSkeleton(modelMat, now / 1000);
 	}
