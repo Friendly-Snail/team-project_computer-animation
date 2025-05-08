@@ -15,7 +15,7 @@ const cartScale = 2.5;
 
 // physics variables
 let mass = 1.0;
-let gravity = 300;
+let gravity = 100;
 
 // shape‐deformation tuning: higher = more dramatic stretch/squash
 const deformationIntensity = 5.0;
