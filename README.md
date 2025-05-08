@@ -75,13 +75,11 @@ around corners. It does slightly change shape, but not as much as we would like 
 
 ## Team Members
 ### Rawindhya Hettiarachchi
-- Provided the initial starter code and README outline, refactored and cleaned up the HTML & JS for consistency, built the UI layout (canvas, file picker) and added the interactive speed slider.
-- Switched the background to a lighter sky-blue, implemented a per-vertex color gradient on the track, and added moving semi-transparent clouds.
-- Extended the cart’s shape deformation to include responding to speed.
-- **Improved spline sampling & interpolation**:
-    - Upgraded Catmull–Rom sampling from ~20 to 100 segments per span for much *smoother* curves.
-    - Implemented true sub‐segment interpolation of the cart’s 2D position (rather than “snapping” to each sample) so the car moves in a continuous, fluid motion.
-    - Fixed interpolation of the previous/next points to correctly measure curvature every frame.
+I drafted the initial README and starter code, then refactored the HTML/JS for consistency and built the UI 
+(canvas, file picker, speed slider). I enhanced the visuals with a sky-blue background, per-vertex track gradient, 
+and moving clouds, and extended the cart’s shape deformation to respond to speed. Finally, I boosted Catmull–Rom 
+sampling from 20 to 100 segments per span and added true sub-sample interpolation so the cart glides *smoothly* with 
+accurate curvature-based stretch (cart previously "jumped" from one point to the next rather than moving continuously).
 
 ### Matthew Gatta
 I worked on wring slerp and quatToMatrix code. I worked on forces with Preston. I also added the Splines and
