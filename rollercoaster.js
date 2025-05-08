@@ -211,6 +211,10 @@ function render() {
 		cartDistance += segmentDist * speedMultiplier;
 		const wheelAngle = (cartDistance / (2 * Math.PI * 3)) * 360;
 
+		// shape deformation based on track curvature
+		const nextIdx = (i + 1) % track.length;
+		const pNext = track[nextIdx];
+
 		// compute unit direction vectors
 		let v1 = subtract(p, pPrev); normalize(v1);
 		let v2 = subtract(pNext, p); normalize(v2);
