@@ -27,7 +27,7 @@ let initialHeight = 0;
 // speed slider multiplier (1.0 = nominal speed)
 let speedMultiplier = 1.0;
 
-// Rider Skeleton Definition (unchanged)
+// Rider Skeleton Definition
 const riderSkeleton = [
 	{ name: "root", parent: null, length: 0, angle: 0 },
 	{ name: "torso", parent: "root", length: 20, angle: 0 },
@@ -47,7 +47,7 @@ function main() {
 	gl.useProgram(program);
 	gl.viewport(0, 0, canvas.width, canvas.height);
 
-	// camera + projection (unchanged)
+	// camera + projection
 	const cameraMatrix = lookAt(
 		vec3(0,0,2),
 		vec3(0,0,0),
@@ -127,7 +127,7 @@ function render() {
 	gl.clearColor(0.80, 0.93, 1.00, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// update to full‐canvas ortho projection
+	// full-canvas ortho projection
 	const cw = gl.canvas.width, ch = gl.canvas.height;
 	const orthoM = ortho(0, cw, 0, ch, -1, 1);
 	setUniformMatrix("cameraMatrix", mat4());
@@ -149,8 +149,8 @@ function render() {
 			vec4(1,1,1,0.8),
 			vec4(1,1,1,0.8),
 			vec4(1,1,1,0.8),
-			vec4(1,1,1,0.8) ];
-
+			vec4(1,1,1,0.8)
+		];
 		setUniformMatrix("modelMatrix", mat4());
 		setAttributes(verts, cols, 2, 4);
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
@@ -168,7 +168,7 @@ function render() {
 		setAttributes(track, trackColors, 2, 4);
 		gl.drawArrays(gl.LINE_STRIP, 0, vertexCount);
 
-		// *smoothly* interpolate cart 2D position
+		// *smoothly* interpolate current 2D position
 		const u = carPosition * (track.length - 1);
 		const i = Math.floor(u), j = (i+1)%track.length;
 		const t = u - i;
@@ -178,7 +178,7 @@ function render() {
 			p0[1] * (1 - t) + p1[1] * t
 		];
 
-		// also interpolate a “previous” point for curvature
+		// interpolate previous point for curvature
 		const uPrev = u - 1;
 		const k = (i - 1 + track.length) % track.length;
 		const tp = uPrev - Math.floor(uPrev);
@@ -188,17 +188,19 @@ function render() {
 			pp0[1] * (1 - tp) + pp1[1] * tp
 		];
 
-		// compute 3D speed from curve3D
+		// energy-based speed under gravity
 		const u3 = carPosition * (curve3D.length - 1);
 		const i3 = Math.floor(u3), j3 = (i3 + 1) % curve3D.length;
-		const dz = curve3D[j3].z - curve3D[i3].z;
-		const baseSpeed = 50;
-		const speed = Math.max(baseSpeed - 3 * gravity * dz, 20) * speedMultiplier;
+		const z = curve3D[i3].z;
+		const deltaH = initialHeight - z; // positive downhill
+		const baseSpeed = 50; // launch speed at top
+		const vSquared = baseSpeed*baseSpeed + 2 * gravity * deltaH;
+		const speed = Math.sqrt(Math.max(vSquared, 0)) * speedMultiplier;
 
 		// advance along track
 		carPosition = (carPosition + speed * dt / trackLength) % 1;
 
-		// bank with SLERP/quaternion (unchanged)
+		// bank with SLERP/quaternion
 		const cpCount = controlPointQuaternions.length;
 		const uQ = carPosition * (cpCount - 1);
 		const iQ = Math.floor(uQ), jQ = (iQ + 1) % cpCount, tQ = uQ - iQ;
@@ -212,16 +214,17 @@ function render() {
 
 		// shape deformation based on track curvature
 		const nextIdx = (i + 1) % track.length;
-		const pNext   = track[nextIdx];
+		const pNext = track[nextIdx];
 		let v1 = subtract(p, pPrev); normalize(v1);
 		let v2 = subtract(pNext, p); normalize(v2);
-		const theta = Math.acos(Math.min(Math.max(dot(v1,v2), -1), 1));
+		const cosTheta = v1[0] * v2[0] + v1[1] * v2[1];
+		const theta = Math.acos(Math.min(Math.max(cosTheta, -1), 1));
 		const curvature = theta / Math.PI;
-		const stretch = 1 + curvature*deformationIntensity;
-		const squash  = 1 / stretch;
-		const speedFactor = 1 + (speed-baseSpeed)/baseSpeed;
+		const stretch = 1 + curvature * deformationIntensity;
+		const squash = 1 / stretch;
+		const speedFactor = 1 + (speed-baseSpeed) / baseSpeed;
 		const finalStretch = stretch * speedFactor;
-		const finalSquash  = squash  / speedFactor;
+		const finalSquash = squash  / speedFactor;
 
 		// build final model matrix
 		const cartYOffset = 7.5 * cartScale;
