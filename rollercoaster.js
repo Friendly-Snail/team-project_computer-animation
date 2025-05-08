@@ -14,7 +14,7 @@ let cartDistance = 0;
 const cartScale = 2.5;
 
 // physics variables
-let mass = 1.0; // message: Unused variable mass [why?]
+let mass = 1.0;
 let gravity = 300;
 
 // shape‐deformation tuning: higher = more dramatic stretch/squash
