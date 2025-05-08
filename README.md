@@ -55,7 +55,7 @@ the cart speeds up and then slows down on its way up, like its being pulled up b
 
 ## How To Use
 For this project, all you need to do is get the spline.txt file in the folder, run the team-project.html
-file and then choose the spline.txt file in the choose file toggle and the animation will appear.
+file and then choose the spline-track.txt file in the choose file toggle and the animation will appear.
 
 ---
 
@@ -75,11 +75,13 @@ around corners. It does slightly change shape, but not as much as we would like 
 
 ## Team Members
 ### Rawindhya Hettiarachchi
-I provided the initial starter code and README outline, refactored and cleaned up the HTML + JS for
-consistency, built the UI layout (canvas, file picker) [basically making things prettier ^_^], and added the
-interactive speed slider to replace the original hard-coded base speed. I also switched the background to a
-lighter sky-blue (to emulate the sky), implemented a per-vertex color gradient on the track, added moving
-semi-transparent clouds, and extended the cart's shape deformation to include responding to speed.
+- Provided the initial starter code and README outline, refactored and cleaned up the HTML & JS for consistency, built the UI layout (canvas, file picker) and added the interactive speed slider.
+- Switched the background to a lighter sky-blue, implemented a per-vertex color gradient on the track, and added moving semi-transparent clouds.
+- Extended the cart’s shape deformation to include responding to speed.
+- **Improved spline sampling & interpolation**:
+    - Upgraded Catmull–Rom sampling from ~20 to 100 segments per span for much *smoother* curves.
+    - Implemented true sub‐segment interpolation of the cart’s 2D position (rather than “snapping” to each sample) so the car moves in a continuous, fluid motion.
+    - Fixed interpolation of the previous/next points to correctly measure curvature every frame.
 
 ### Matthew Gatta
 I worked on wring slerp and quatToMatrix code. I worked on forces with Preston. I also added the Splines and
