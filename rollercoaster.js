@@ -66,7 +66,7 @@ function main() {
 	// file input for spline
 	const fileInput = document.getElementById("files");
 	const mySpline  = new Spline();
-	fileInput.addEventListener("change", ev => {
+	fileInput.addEventListener("change", event => {
 		const reader = new FileReader();
 		reader.onload = e => {
 			mySpline.parse(e.target.result);
@@ -86,18 +86,18 @@ function main() {
 			const height = maxY - minY;
 			const cw = canvas.width, ch = canvas.height;
 			const margin = 40;
-			const scale = Math.min((cw - margin*2)/width, (ch - margin*2)/height);
+			const scale = Math.min((cw - margin * 2)/width, (ch - margin * 2)/height);
 			const offset = vec2(
 				(cw - scale*width)/2  - scale*minX,
 				(ch - scale*height)/2 - scale*minY
 			);
 
-			track = curve3D.map(p => add(vec2(p.x*scale, p.y*scale), offset));
+			track = curve3D.map(p => add(vec2(p.x * scale, p.y * scale), offset));
 			vertexCount = track.length;
 
 			// compute 2D track length
 			trackLength = 0;
-			for (let i=1; i<track.length; i++) {
+			for (let i=1; i < track.length; i++) {
 				const dx = track[i][0] - track[i-1][0];
 				const dy = track[i][1] - track[i-1][1];
 				trackLength += Math.hypot(dx,dy);
@@ -110,7 +110,7 @@ function main() {
 				eulerToQuaternion(pt.rotation.x, pt.rotation.y, pt.rotation.z)
 			);
 		};
-		reader.readAsText(ev.target.files[0]);
+		reader.readAsText(event.target.files[0]);
 	});
 
 	// start render loop
@@ -188,14 +188,13 @@ function render() {
 			pp0[1] * (1 - tp) + pp1[1] * tp
 		];
 
-		// energy-based speed under gravity
+		// compute world‐space speed along the 3D spline
 		const u3 = carPosition * (curve3D.length - 1);
 		const i3 = Math.floor(u3), j3 = (i3 + 1) % curve3D.length;
-		const z = curve3D[i3].z;
-		const deltaH = initialHeight - z; // positive downhill
-		const baseSpeed = 50; // launch speed at top
-		const vSquared = baseSpeed*baseSpeed + 2 * gravity * deltaH;
-		const speed = Math.sqrt(Math.max(vSquared, 0)) * speedMultiplier;
+		const z0 = curve3D[i3].z, z1 = curve3D[j3].z;
+		const dz = z1 - z0;
+		const baseSpeed = 50;
+		const speed = Math.max(baseSpeed - 3 * gravity * dz, 20) * speedMultiplier;
 
 		// advance along track
 		carPosition = (carPosition + speed * dt / trackLength) % 1;
@@ -212,26 +211,30 @@ function render() {
 		cartDistance += segmentDist * speedMultiplier;
 		const wheelAngle = (cartDistance / (2 * Math.PI * 3)) * 360;
 
-		// shape deformation based on track curvature
-		const nextIdx = (i + 1) % track.length;
-		const pNext = track[nextIdx];
+		// compute unit direction vectors
 		let v1 = subtract(p, pPrev); normalize(v1);
 		let v2 = subtract(pNext, p); normalize(v2);
+
+		// angle between segments -> [0, pi], normalize to [0,1]
 		const cosTheta = v1[0] * v2[0] + v1[1] * v2[1];
 		const theta = Math.acos(Math.min(Math.max(cosTheta, -1), 1));
 		const curvature = theta / Math.PI;
-		const stretch = 1 + curvature * deformationIntensity;
-		const squash = 1 / stretch;
-		const speedFactor = 1 + (speed-baseSpeed) / baseSpeed;
-		const finalStretch = stretch * speedFactor;
-		const finalSquash = squash  / speedFactor;
 
-		// build final model matrix
+		// drive stretch/squash
+		const stretchFactor = 1 + curvature * deformationIntensity;
+		const squashFactor = 1 / stretchFactor;
+
+		// add a little extra stretch when cart is going faster
 		const cartYOffset = 7.5 * cartScale;
+		const speedFactor = 1 + (speed - baseSpeed) / baseSpeed;  // >1 when faster than nominal
+		const finalStretch = stretchFactor * speedFactor;
+		const finalSquash  = squashFactor / speedFactor;
+
+		// then build model matrix with finalStretch / finalSquash instead
 		const modelMat = mult(
 			translate(p[0], p[1], 0),
 			orientMat,
-			translate(0, cartYOffset, 0),
+			translate(0, 7.5 * cartScale, 0),
 			// squash in X, stretch in Y
 			scalem(
 				cartScale * finalSquash,
