@@ -1,25 +1,49 @@
+# spline-track.txt
+# 1 spline, 11 control points, 1.0 second duration
 1
 11
 1.0
+
+# Control Point 1: start at origin, no rotation
 0.0,0.0,0.0
 0.0,0.0,0.0
+
+# Control Point 2: move up-right, bank 30 degrees
 1.0,1.0,0.0
 0.0,0.0,30.0
+
+# Control Point 3: continue up-right, bank 60 degrees
 2.0,2.0,0.0
 0.0,0.0,60.0
+
+# Control Point 4: curve back toward center, bank 90 degrees
 3.0,1.0,0.0
 0.0,0.0,90.0
+
+# Control Point 5: highest X-position, no Y offset, bank 120 degrees
 4.0,0.0,0.0
 0.0,0.0,120.0
+
+# Control Point 6: start descending down-right, bank 150 degrees
 3.0,-1.0,0.0
 0.0,0.0,150.0
+
+# Control Point 7: bottom-right dip, bank 180 degrees
 2.0,-2.0,0.0
 0.0,0.0,180.0
+
+# Control Point 8: curve back up-left, bank 210 degrees
 1.0,-1.0,0.0
 0.0,0.0,210.0
+
+# Control Point 9: return to origin, no rotation
 0.0,0.0,0.0
 0.0,0.0,0.0
+
+# Control Point 10: small up-right bump, bank 30 degrees
 1.0,1.0,0.0
 0.0,0.0,30.0
+
+# Control Point 11: another up-right, bank 60 degrees
 2.0,2.0,0.0
 0.0,0.0,60.0

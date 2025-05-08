@@ -15,7 +15,7 @@ const cartScale = 2.5;
 
 // physics variables
 let mass = 1.0; // message: Unused variable mass [why?]
-let gravity = 100;
+let gravity = 300;
 
 // shape‐deformation tuning: higher = more dramatic stretch/squash
 const deformationIntensity = 5.0;
@@ -170,7 +170,7 @@ function render() {
 
 		// *smoothly* interpolate current 2D position
 		const u = carPosition * (track.length - 1);
-		const i = Math.floor(u), j = (i+1)%track.length;
+		const i = Math.floor(u), j = (i + 1) % track.length;
 		const t = u - i;
 		const p0 = track[i], p1 = track[j];
 		const p = [
@@ -241,7 +241,7 @@ function render() {
 		);
 		setUniformMatrix("modelMatrix", modelMat);
 
-		// draw car & rider
+		// draw cart & rider
 		drawCoasterCar(modelMat, wheelAngle);
 		drawRiderSkeleton(modelMat, now / 1000);
 	}
